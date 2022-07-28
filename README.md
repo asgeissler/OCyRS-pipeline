@@ -37,8 +37,9 @@ software dependencies. The only hard-requirement are
 
 1. A powerful machine or cluster (at least 20 CPU cores 20+ GB RAM)
 2. Singularity version $\ge 3.9$
+3. [Miniconda3](https://docs.conda.io/en/latest/miniconda.html) + Mamba
 
-## MacOS
+### MacOS
 
 To install singularity, please consider using
 a [Vagrant](https://www.vagrantup.com/) box for
@@ -55,6 +56,19 @@ activated in the current working directory with:
         $ vagrant ssh
         $ cd /vagrant/
 
+Finally, the conda environment must be installed within the virtual box.
+
+        $ wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+        $ sh Miniconda3-latest-Linux-x86_64.sh
+
+Due to the requirement 'For changes to take effect, close and re-open your current shell.', you must exit and reopen the shell before being able to install mamba.
+
+        $ exit
+        $ vagrant ssh
+        $ cd /vagrant/
+        $ conda install -n base -c conda-forge mamba
+
+Afterward, the virtual box is fully setup to work with the pipeline.
 
 ## Dependencies
 
@@ -69,7 +83,7 @@ software repository:
 1. BUSCO v$5.4.0$
 1. CMfinder v$0.4.1.9$
 1. Infernal v$1.1.4$
-1. Snakemake v$6.13.1$
+1. Snakemake v$7.9.0$
 
 
 

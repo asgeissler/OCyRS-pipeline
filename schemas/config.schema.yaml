@@ -1,0 +1,11 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+
+description: The main configuration file
+
+properties:
+    project_root:
+        type: string
+        description: Set to full project path
+    phylum:
+        type: string
+        description: name of phylum to download info for

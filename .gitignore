@@ -1,4 +1,4 @@
-# Make sure to not include the singulairty images
+# Make sure to not include the singularity images
 .vagrant
 busco:*
 cmfinder:*
@@ -6,6 +6,9 @@ infernal:*
 iqtree:*
 snakemake:*
 
+# Do not store binary data
+.snakemake
+data
 
 #
 # Created by https://www.toptal.com/developers/gitignore/api/python,r,macos,linux

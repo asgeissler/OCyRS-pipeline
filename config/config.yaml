@@ -1,0 +1,9 @@
+# Set the global path of project
+# Memo: If you do not use the snakemake image, this will be the physical 
+#       location, not the virtual mount point
+project_root: '/vagrant'
+
+# Specify which phylum to search in
+phylum: 'Cyanobacteria'
+
+
