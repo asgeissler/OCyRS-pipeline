@@ -37,5 +37,9 @@ rule A_download:
                 "https://progenomes.embl.de/dumpAnnotation.cgi?p={config[phylum]}&t=$k&a=phylum" \
                 -O ${{names2[$k]}}
         done
+
+        # download remaining meta info
+        wget 'https://progenomes.embl.de/data/proGenomes2.1_specI_lineageNCBI.tab' -O specI_lineageNCBI.tab
+        wget 'https://progenomes.embl.de/data/proGenomes2.1_specI_clustering.tab' -O specI_clustering.tab
         """
 
