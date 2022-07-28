@@ -6,7 +6,10 @@ rule A_download:
         'data/A_progenomes/proteins.faa.gz',
         'data/A_progenomes/genes.tsv',
         'data/A_progenomes/groups.tsv',
-        'data/A_progenomes/antibiotic.tsv'
+        'data/A_progenomes/antibiotic.tsv',
+        'specI_lineageNCBI.tab',
+        'specI_clustering.tab',
+        'proteins.representatives.fasta.gz'
     shell:
         """
         mkdir -p data/A_progenomes
@@ -41,5 +44,8 @@ rule A_download:
         # download remaining meta info
         wget 'https://progenomes.embl.de/data/proGenomes2.1_specI_lineageNCBI.tab' -O specI_lineageNCBI.tab
         wget 'https://progenomes.embl.de/data/proGenomes2.1_specI_clustering.tab' -O specI_clustering.tab
+
+        # needed to determine what the represantitive genomes are
+        wget 'https://progenomes.embl.de/data/repGenomes/freeze12.proteins.representatives.fasta.gz' -O proteins.representatives.fasta.gz
         """
 
