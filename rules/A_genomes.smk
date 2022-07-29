@@ -1,15 +1,15 @@
 
 rule A_download:
     output:
-        'data/A_progenomes/genomes.fna.gz',
-        'data/A_progenomes/genes.fna.gz',
-        'data/A_progenomes/proteins.faa.gz',
-        'data/A_progenomes/genes.tsv',
-        'data/A_progenomes/groups.tsv',
-        'data/A_progenomes/antibiotic.tsv',
-        'data/A_progenomes/specI_lineageNCBI.tab',
-        'data/A_progenomes/specI_clustering.tab',
-        'data/A_progenomes/proteins.representatives.fasta.gz'
+        protected('data/A_progenomes/genomes.fna.gz'),
+        protected('data/A_progenomes/genes.fna.gz'),
+        protected('data/A_progenomes/proteins.faa.gz'),
+        protected('data/A_progenomes/genes.tsv'),
+        protected('data/A_progenomes/groups.tsv'),
+        protected('data/A_progenomes/antibiotic.tsv'),
+        protected('data/A_progenomes/specI_lineageNCBI.tab'),
+        protected('data/A_progenomes/specI_clustering.tab'),
+        protected('data/A_progenomes/proteins.representatives.fasta.gz')
     shell:
         """
         mkdir -p data/A_progenomes
@@ -53,7 +53,7 @@ rule A_replist:
     input:
         'data/A_progenomes/proteins.representatives.fasta.gz'
     output:
-        'data/A_progenomes/representatives.txt'
+        protected('data/A_progenomes/representatives.txt')
     shell:
         """
         # extract the taxid.bioproject identifiers for representative genomes

@@ -4,7 +4,7 @@ busco:*
 cmfinder:*
 infernal:*
 iqtree:*
-snakemake:*
+muscle:*
 
 # Do not store binary data
 .snakemake
