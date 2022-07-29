@@ -10,6 +10,8 @@ snakemake:*
 .snakemake
 data
 
+*.Rproj
+
 #
 # Created by https://www.toptal.com/developers/gitignore/api/python,r,macos,linux
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,r,macos,linux

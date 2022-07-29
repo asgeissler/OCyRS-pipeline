@@ -38,7 +38,14 @@ software dependencies. The only hard-requirement are
 1. A powerful machine or cluster (at least 20 CPU cores 20+ GB RAM)
 2. Singularity version $\ge 3.9$
 3. [Miniconda3](https://docs.conda.io/en/latest/miniconda.html) + Mamba
+3. [Snakemake](https://snakemake.github.io/) $\ge 7.9.0$
 4. Git [large file support](https://git-lfs.github.com/) plugin
+
+### Linux
+
+Please use either the binary packages coming with your distribution's package
+system or follow the installation procedures listed by the respective
+project websites.
 
 ### MacOS
 
@@ -68,6 +75,7 @@ Due to the requirement 'For changes to take effect, close and re-open your curre
         $ vagrant ssh
         $ cd /vagrant/
         $ conda install -n base -c conda-forge mamba
+        $ mamba install -n base -c bioconda -c conda-forge snakemake
 
 Afterward, the virtual box is fully setup to work with the pipeline.
 
@@ -84,7 +92,6 @@ software repository:
 1. BUSCO v$5.4.0$
 1. CMfinder v$0.4.1.9$
 1. Infernal v$1.1.4$
-1. Snakemake v$7.9.0$
 
 
 A container with various R packages `renv/renv.sif`

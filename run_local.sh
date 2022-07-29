@@ -8,11 +8,7 @@ else
     target="$@"
 fi
 
-singularity exec                  \
-    --bind /vagrant:/vagrant      \
-    --pwd /vagrant                \
-    snakemake:7.9.0--hdfd78af_0   \
-    snakemake                     \
+snakemake                         \
     --use-singularity             \
     --cores all                   \
     $target
