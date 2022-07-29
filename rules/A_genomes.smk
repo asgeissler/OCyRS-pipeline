@@ -7,9 +7,9 @@ rule A_download:
         'data/A_progenomes/genes.tsv',
         'data/A_progenomes/groups.tsv',
         'data/A_progenomes/antibiotic.tsv',
-        'specI_lineageNCBI.tab',
-        'specI_clustering.tab',
-        'proteins.representatives.fasta.gz'
+        'data/A_progenomes/specI_lineageNCBI.tab',
+        'data/A_progenomes/specI_clustering.tab',
+        'data/A_progenomes/proteins.representatives.fasta.gz'
     shell:
         """
         mkdir -p data/A_progenomes
@@ -49,3 +49,19 @@ rule A_download:
         wget 'https://progenomes.embl.de/data/repGenomes/freeze12.proteins.representatives.fasta.gz' -O proteins.representatives.fasta.gz
         """
 
+rule A_replist:
+    input:
+        'data/A_progenomes/proteins.representatives.fasta.gz'
+    input:
+        'data/A_progenomes/representatives.txt'
+    shell:
+        """
+        # extract the taxid.bioproject identifiers for representative genomes
+        foo=$(mktemp)
+        gunzip -c {input} > $foo
+        grep '^>' $foo > $foo.deflines
+        sed "s,^>\([0-9]*\.[A-Z0-9]*\)\..*$,\1,g" $foo.deflines | uniq > $foo.near
+        sort $foo.near | uniq > {output}
+
+        rm $foo*
+        """
