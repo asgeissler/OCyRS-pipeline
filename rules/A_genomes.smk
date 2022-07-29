@@ -52,7 +52,7 @@ rule A_download:
 rule A_replist:
     input:
         'data/A_progenomes/proteins.representatives.fasta.gz'
-    input:
+    output:
         'data/A_progenomes/representatives.txt'
     shell:
         """

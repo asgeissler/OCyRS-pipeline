@@ -23,4 +23,5 @@ include: 'rules/A_genomes.smk'
 # Target rules
 rule all:
     input:
-        'data/A_progenomes/genomes.fna.gz'
+        'data/A_progenomes/genomes.fna.gz',
+        'data/A_progenomes/representatives.txt'
