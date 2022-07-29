@@ -1,0 +1,35 @@
+name: renv
+channels:
+    - conda-forge
+    - bioconda
+    - defaults
+dependencies:
+    - bioconductor-biostrings
+    - bioconductor-genomeinfodbdata
+    - bioconductor-rtracklayer
+    - bioconductor-plyranges
+    - r-ape
+    - r-directlabels
+    - r-essentials >= 3.6.0
+    - r-base
+    - r-broom
+    - r-corrplot
+    - r-conflicted
+    - r-cowplot
+    - r-furrr
+    - r-dendextend
+    - r-rentrez
+    - r-ggextra
+    - r-ggforce
+    - r-ggfortify
+    - r-ggrepel
+    - r-ggsci
+    - r-gridgraphics
+    - r-gplots
+    - r-magick
+    - r-pheatmap
+    - r-rcolorbrewer
+    - r-tidyverse
+    - r-upsetr
+    - r-xml2
+    - r-venn

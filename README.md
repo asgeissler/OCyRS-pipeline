@@ -1,6 +1,6 @@
 # OCyRS: Orthologues cyanobacterial gene-associated RNA structure motifs
 
-This repository corresponds to the pipline of the scientific publication:
+This repository corresponds to the pipeline of the scientific publication:
 
 
 A cyanobacteria phylum-wide genomic screen for RNA structure motifs
@@ -11,13 +11,13 @@ AS  Geissler, EC Alvarez, NU Frigaard, J Gorodkin, and SE Seemann
 
 ## Purpose
 
-This pipline download public cyanobacterial genome sequence and annotations
+This pipeline download public cyanobacterial genome sequence and annotations
 from
 [proGenomes](https://progenomes.embl.de/).
 Anchored to orthologues genes, potential adjacently located
 RNA structure motif are searched for with
 [CMfinder](http://bio.cs.washington.edu/yzizhen/CMfinder/).
-The pipline includes additional steps to score the motifs and check
+The pipeline includes additional steps to score the motifs and check
 for their phylogenetic/biological plausibility with
 [R-scape](http://eddylab.org/R-scape/).
 As such, the motifs are compared with known bacterial
@@ -38,6 +38,7 @@ software dependencies. The only hard-requirement are
 1. A powerful machine or cluster (at least 20 CPU cores 20+ GB RAM)
 2. Singularity version $\ge 3.9$
 3. [Miniconda3](https://docs.conda.io/en/latest/miniconda.html) + Mamba
+4. Git [large file support](https://git-lfs.github.com/) plugin
 
 ### MacOS
 
@@ -86,6 +87,12 @@ software repository:
 1. Snakemake v$7.9.0$
 
 
+A container with various R packages `renv/renv.sif`
+is pre-build as part of this pipeline.
+The corresponding conda environment was for maximal reproducibility
+[conda-lock'ed](https://github.com/conda-incubator/conda-lock),
+such that the exact versions are specified for linux `x64`
+computer architectures, in case you would like to re-build the container.
 
 
 
