@@ -10,5 +10,5 @@ From: continuumio/miniconda3
     /opt/conda/bin/conda-lock install -n renv conda-lock.yml
 
 %runscript
-    exec /opt/conda/envs/ocyrs/bin/"$@"
+    exec /opt/conda/envs/renv/bin/Rscript "$@"
 
