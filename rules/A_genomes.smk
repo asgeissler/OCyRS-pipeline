@@ -60,8 +60,13 @@ rule A_replist:
         foo=$(mktemp)
         gunzip -c {input} > $foo
         grep '^>' $foo > $foo.deflines
-        sed "s,^>\([0-9]*\.[A-Z0-9]*\)\..*$,\1,g" $foo.deflines | uniq > $foo.near
-        sort $foo.near | uniq > {output}
+        sed "s,^>,,g" $foo.deflines | \
+            sed "s,\t.*$,,g"        | \
+            sed "s,\.[^.]*$,,g"     | \
+            uniq  > $foo.near
 
-        rm $foo*
+        sort $foo.near | uniq > $foo.done
+        cp $foo.done {output}
+
+        #rm $foo*
         """
