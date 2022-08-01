@@ -9,18 +9,28 @@ library(conflicted)
 conflict_prefer("filter", "dplyr")
 
 # general prokaryotic info
-path.rep <- 'data/A_progenomes/representatives.txt'
-path.tax <- 'data/A_progenomes/specI_lineageNCBI.tab'
-
+path.rep <- unlist(snakemake@input[['rep']])
+path.tax <- unlist(snakemake@input[['tax']])
 # project specific data
-path.genomes.seq <- 'data/A_progenomes/genomes.fna.gz'
-path.proteins.seq <- 'data/A_progenomes/proteins.faa.gz'
-path.genes.seq <- 'data/A_progenomes/genes.fna.gz'
-path.genes <- 'data/A_progenomes/genes.tsv'
-path.groups <- 'data/A_progenomes/groups.tsv'
+path.genomes.seq <- unlist(snakemake@input[['genomes_seq']])
+path.proteins.seq <- unlist(snakemake@input[['genes_seq']])
+path.genes.seq <- unlist(snakemake@input[['genes_seq']])
+path.genes <- unlist(snakemake@input[['genes']])
+path.groups <- unlist(snakemake@input[['groups']])
+
+# # general prokaryotic info
+# path.rep <- 'data/A_progenomes/representatives.txt'
+# path.tax <- 'data/A_progenomes/specI_lineageNCBI.tab'
+# # project specific data
+# path.genomes.seq <- 'data/A_progenomes/genomes.fna.gz'
+# path.proteins.seq <- 'data/A_progenomes/proteins.faa.gz'
+# path.genes.seq <- 'data/A_progenomes/genes.fna.gz'
+# path.genes <- 'data/A_progenomes/genes.tsv'
+# path.groups <- 'data/A_progenomes/groups.tsv'
 
 # Output: Per representative genome 1 folder under
-path.out <- 'data/A_representatives'
+path.out <- unlist(snakemake@output)
+# path.out <- 'data/A_representatives'
 dir.create(path.out)
 
 # Overview over URLs/APIs used in this script

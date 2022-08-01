@@ -70,3 +70,20 @@ rule A_replist:
 
         #rm $foo*
         """
+
+rule A_derep:
+    input:
+        rep = 'data/A_progenomes/representatives.txt',
+        tax = 'data/A_progenomes/specI_lineageNCBI.tab',
+        genomes_seq = 'data/A_progenomes/genomes.fna.gz',
+        proteins_seq = 'data/A_progenomes/proteins.faa.gz',
+        genes_seq = 'data/A_progenomes/genes.fna.gz',
+        genes = 'data/A_progenomes/genes.tsv',
+        groups = 'data/A_progenomes/groups.tsv'
+    output:
+        directory('data/A_representatives')
+    container:
+        'renv/renv.sif'
+    script:
+        '../scripts/A_extract-representatives.R'
+

@@ -24,4 +24,5 @@ include: 'rules/A_genomes.smk'
 rule all:
     input:
         'data/A_progenomes/genomes.fna.gz',
-        'data/A_progenomes/representatives.txt'
+        'data/A_progenomes/representatives.txt',
+        'data/A_representatives/'
