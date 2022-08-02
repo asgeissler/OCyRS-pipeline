@@ -26,4 +26,4 @@ rule all:
         'data/A_progenomes/genomes.fna.gz',
         'data/A_progenomes/representatives.txt',
         'data/A_representatives/',
-        touch('data/A_checkm/checkm_summary.tsv')
+        'data/A_checkm/checkm_summary.tsv'

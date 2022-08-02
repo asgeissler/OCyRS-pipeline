@@ -115,7 +115,7 @@ rule A_checkm:
         """
 
 def A_aggregate_genomes(wildcards,
-                        x = 'data/A_representatives/{tax_bio}/genome.fna.gz):
+                        x = 'data/A_representatives/{tax_bio}/genome.fna.gz'):
 
     """
     List for all genomes the fasta sequence file (default, but adjustable by
