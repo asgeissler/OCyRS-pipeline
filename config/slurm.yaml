@@ -1,0 +1,11 @@
+__default__:
+    time: 0-01:00:00
+    job-name: '{rule}'
+    cpus: 1
+    mem: 8GB
+    partition: bullseye
+    output: 'slurmlogs/{rule}_$(date "+%Y-%m-%d_%H-%M-%S")_job%j.out.txt'
+    error: 'slurmlogs/{rule}_$(date "+%Y-%m-%d_%H-%M-%S")_job%j.err.txt'
+
+A_checkm:
+    cpus: 8

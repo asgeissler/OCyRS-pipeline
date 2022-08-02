@@ -103,3 +103,21 @@ computer architectures, in case you would like to re-build the container.
 
 
 
+## How to use 
+
+***Before you start:***
+Please adjust the `project_root` variable in the `config/config.yaml` file to
+your project path.
+
+
+There are currently two helper script to aid starting snakemake. Use either
+
+1. `$ bash run_local.sh` for running snakemake on a single powerful machine.
+2. `$ bash run_slurm.sh` to submit jobs to a slurm cluster.
+
+In case of the latter, also consider adjusting `config/slurm.yaml` to your
+environment (*e.g.* partition name). To adapt a similar helper script for
+alternative cluster solutions, please refer to the
+[snakemake handbook](https://snakemake.readthedocs.io/en/stable/executing/cluster.html).
+
+

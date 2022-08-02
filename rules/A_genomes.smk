@@ -93,7 +93,7 @@ rule A_checkm:
         "data/A_representatives/{genome}/genome.fna.gz"
     output:
         directory("data/A_checkm/{genome}")
-    threads: 4
+    threads: 8
     container: 'checkm-genome:1.2.0--pyhdfd78af_0'
     shell:
         """
