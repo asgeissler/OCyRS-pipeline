@@ -5,6 +5,7 @@ cmfinder:*
 infernal:*
 iqtree:*
 muscle:*
+checkm-genome:*
 
 # Do not store binary data
 .snakemake

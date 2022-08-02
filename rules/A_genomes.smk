@@ -71,7 +71,7 @@ rule A_replist:
         #rm $foo*
         """
 
-rule A_derep:
+checkpoint A_representatives:
     input:
         rep = 'data/A_progenomes/representatives.txt',
         tax = 'data/A_progenomes/specI_lineageNCBI.tab',
@@ -86,4 +86,53 @@ rule A_derep:
         'renv/renv.sif'
     script:
         '../scripts/A_extract-representatives.R'
+
+
+rule A_checkm:
+    input:
+        "data/A_representatives/{genome}/genome.fna.gz"
+    output:
+        directory("data/A_checkm/{genome}")
+    threads: 4
+    container: 'checkm-genome:1.2.0--pyhdfd78af_0'
+    shell:
+        """
+        #!/bin/bash
+        # setup a tmp working dir
+        tmp=$(mktemp -d)
+        mkdir $tmp/ref
+        cp {input} $tmp/ref/genome.fna.gz
+        gunzip -c $tmp/ref/genome.fna.gz > $tmp/ref/genome.fna
+        # run checkin
+        checkm lineage_wf -t {threads} -x fna $tmp/ref $tmp/out > $tmp/stdout
+        # prepare output folder
+        mkdir -p {output}
+        # copy results over
+        cp -r $tmp/out/* {output}/
+        cp $tmp/stdout {output}/checkm.txt
+        # cleanup
+        rm -rf $tmp
+        """
+
+def A_aggregate_genomes(wildcards,
+                        x = 'data/A_representatives/{tax_bio}/genome.fna.gz):
+
+    """
+    List for all genomes the fasta sequence file (default, but adjustable by
+    parameter x).
+    """
+    # make sure that the rule 'A_representatives' finished running
+    chk = checkpoints.A_representatives.get().output[0]
+    # load taxonomy table without dots in names
+    df = pd.read_csv('data/A_representatives/taxonomy.tsv', sep = '\t')
+    df.columns = df.columns.str.replace('.', '_')
+    # list genome files
+    return sample_wise(x, df)
+
+rule A_chkm_summary:
+    input:
+        A_aggregate_genomes
+    output:
+        touch('data/A_checkm/checkm_summary.tsv')
+
 
