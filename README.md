@@ -89,10 +89,12 @@ The script downloads the following software images from the
 [Galaxy project](https://galaxyproject.org/)
 software repository:
 
-1. BUSCO v$5.4.0$
-1. CMfinder v$0.4.1.9$
-1. Infernal v$1.1.4$
-
+1. BUSCO $5.4.0$
+1. CheckM $1.2.0$
+1. CMfinder $0.4.1.9$
+1. Infernal $1.1.4$
+1. IQ-TREE $2.2.0.3$
+1. MUSCLE $3.8.1551$
 
 A container with various R packages `renv/renv.sif`
 is pre-build as part of this pipeline.
