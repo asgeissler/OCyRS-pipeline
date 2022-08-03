@@ -9,3 +9,4 @@ __default__:
 
 A_checkm:
     cpus: 8
+    mem: 40GB

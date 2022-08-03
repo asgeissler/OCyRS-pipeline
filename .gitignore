@@ -1,16 +1,18 @@
 # Make sure to not include the singularity images
 .vagrant
 busco:*
+checkm-genome:*
 cmfinder:*
 infernal:*
 iqtree:*
 muscle:*
-checkm-genome:*
 
 # Do not store binary data
 .snakemake
 data
 
+# Misc
+slurmlogs
 *.Rproj
 
 #

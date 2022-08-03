@@ -1,7 +1,6 @@
 # Set the global path of project
-# Memo: If you do not use the snakemake image, this will be the physical 
-#       location, not the virtual mount point
-project_root: '/vagrant'
+# Memo: If use the Vagrant based singularity, this might be '/vagrant'
+project_root: '/home/projects/rth/co2capture/subprojects/OCyRS/OCyRS-pipeline'
 
 # Specify which phylum to search in
 phylum: 'Cyanobacteria'

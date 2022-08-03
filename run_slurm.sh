@@ -17,6 +17,7 @@ fi
 
 snakemake                                                            \
     --use-singularity                                                \
+    --use-conda                                                      \
     --jobs 999 `# limit on jobs in parallel`                         \
     --scheduler greedy `# circumvent stuck on 'select jobs' bug`     \
     --keep-going `# Go on with independent jobs if a job fails.`     \

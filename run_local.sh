@@ -8,7 +8,10 @@ else
     target="$@"
 fi
 
-snakemake                                                 \
-    --use-singularity                                     \
-    --cores all                                           \
+snakemake                    \
+    --use-singularity        \
+    --use-conda              \
+    --cores all              \
+    --resources mem_mb=40000 \
+    --keep-going             \
     $target

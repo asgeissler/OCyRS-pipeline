@@ -82,8 +82,8 @@ checkpoint A_representatives:
         groups = 'data/A_progenomes/groups.tsv'
     output:
         directory('data/A_representatives')
-    container:
-        'renv/renv.sif'
+    container: 'renv/renv.sif'
+    conda: 'renv'
     script:
         '../scripts/A_extract-representatives.R'
 
@@ -93,19 +93,27 @@ rule A_checkm:
         "data/A_representatives/{genome}/genome.fna.gz"
     output:
         directory("data/A_checkm/{genome}")
-    threads: 8
-    container: 'checkm-genome:1.2.0--pyhdfd78af_0'
+    threads:
+        8
+    resources:
+        mem_mb = 32000
+    container:
+        'checkm-genome\:1.2.0--pyhdfd78af_0'
     shell:
         """
-        #!/bin/bash
         # setup a tmp working dir
         tmp=$(mktemp -d)
         mkdir $tmp/ref
         cp {input} $tmp/ref/genome.fna.gz
-        gunzip -c $tmp/ref/genome.fna.gz > $tmp/ref/genome.fna
-        # run checkin
-        checkm lineage_wf -t {threads} -x fna $tmp/ref $tmp/out > $tmp/stdout
+        cd $tmp/ref
+        gunzip -c genome.fna.gz > genome.fna
+        cd $tmp
+
+        # run checking
+        checkm lineage_wf -t {threads} -x fna ref out > stdout
+
         # prepare output folder
+        cd {config[project_root]}
         mkdir -p {output}
         # copy results over
         cp -r $tmp/out/* {output}/
@@ -114,12 +122,13 @@ rule A_checkm:
         rm -rf $tmp
         """
 
-def A_aggregate_genomes(wildcards,
-                        x = 'data/A_representatives/{tax_bio}/genome.fna.gz'):
+def A_aggregate_genomes(wildcards, x):
 
     """
     List for all genomes the fasta sequence file (default, but adjustable by
     parameter x).
+    For example:
+        x = 'data/A_representatives/{tax_bio}/genome.fna.gz'):
     """
     # make sure that the rule 'A_representatives' finished running
     chk = checkpoints.A_representatives.get().output[0]
@@ -131,7 +140,7 @@ def A_aggregate_genomes(wildcards,
 
 rule A_chkm_summary:
     input:
-        A_aggregate_genomes
+        lambda wild: A_aggregate_genomes(wild, 'data/A_checkm/{tax_bio}/')
     output:
         touch('data/A_checkm/checkm_summary.tsv')
 

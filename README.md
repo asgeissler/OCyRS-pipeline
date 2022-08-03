@@ -35,7 +35,7 @@ This pipeline is implemented in a reproducible
 workflow, which automatically handles the further
 software dependencies. The only hard-requirement are
 
-1. A powerful machine or cluster (at least 20 CPU cores 20+ GB RAM)
+1. A powerful machine or cluster (at least 20 CPU cores 40+ GB RAM)
 2. Singularity version $\ge 3.9$
 3. [Miniconda3](https://docs.conda.io/en/latest/miniconda.html) + Mamba
 3. [Snakemake](https://snakemake.github.io/) $\ge 7.9.0$
