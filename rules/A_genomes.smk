@@ -96,7 +96,7 @@ rule A_checkm:
     threads:
         8
     resources:
-        mem_mb = 32000
+        mem_mb = 40000
     container:
         'checkm-genome\:1.2.0--pyhdfd78af_0'
     shell:
@@ -138,10 +138,23 @@ def A_aggregate_genomes(wildcards, x):
     # list genome files
     return sample_wise(x, df)
 
-rule A_chkm_summary:
+rule A_chkm_done:
     input:
         lambda wild: A_aggregate_genomes(wild, 'data/A_checkm/{tax_bio}/')
     output:
-        touch('data/A_checkm/checkm_summary.tsv')
+        touch(data/A_checkm/done.flag)
+
+rule A_chkm_summary:
+    input:
+        tax = 'data/A_progenomes/specI_lineageNCBI.tab',
+        genes = 'data/A_progenomes/genes.tsv',
+        flag = data/A_checkm/done.flag
+    output:
+        tbl = 'data/A_checkm/checkm_summary.tsv',
+        fig = 'data/A_checkm/checkm_summary.png'
+    container: 'renv/renv.sif'
+    conda: 'renv'
+    script:
+        '../scripts/A_summarize-checkm.R'
 
 
