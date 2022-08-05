@@ -109,15 +109,6 @@ dat3 %>%
   theme_bw(18) -> p1
 
 dat3 %>%
-  ggplot(aes(GC, as.integer(Coding), color = Order)) +
-  # ggsci::scale_color_jco() +
-  scale_color_manual(values = cbbPalette) +
-  geom_point(size = 4, alpha = .5) +
-  xlab('Avg. GC content') +
-  ylab('No.coding genes') +
-  theme_bw(18) -> p2
-
-dat3 %>%
   ggplot(aes(Completeness, color = Order)) +
   scale_color_manual(values = cbbPalette) +
   stat_ecdf(size = 2, alpha = 0.7) +
@@ -125,6 +116,15 @@ dat3 %>%
   xlab('Genome completeness') +
   ylab('Empirical cum. density') +
   theme_bw(18) -> p3
+
+dat3 %>%
+  ggplot(aes(GC, Completeness, color = Contamination)) +
+  scale_color_viridis_c() +
+  geom_point(size = 5, alpha = .5) +
+  xlab('Avg. GC content') +
+  ylab('Genome completeness') +
+  theme_bw(18) -> p2
+
 
 dat3 %>%
   ggplot(aes(Size / 1e6, Completeness, color = Contamination)) +
@@ -138,7 +138,7 @@ dat3 %>%
 
 
 cowplot::plot_grid(
-  p1, p2, p3, p4,
+  p1, p3, p2, p4,
   labels = 'AUTO',
   label_size = 20
 ) %>%
