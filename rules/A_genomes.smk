@@ -142,13 +142,13 @@ rule A_chkm_done:
     input:
         lambda wild: A_aggregate_genomes(wild, 'data/A_checkm/{tax_bio}/')
     output:
-        touch(data/A_checkm/done.flag)
+        touch('data/A_checkm/done.flag')
 
 rule A_chkm_summary:
     input:
-        tax = 'data/A_progenomes/specI_lineageNCBI.tab',
-        genes = 'data/A_progenomes/genes.tsv',
-        flag = data/A_checkm/done.flag
+        tax = 'data/A_representatives/taxonomy.tsv',
+        genes = 'data/A_representatives/genes.tsv.gz',
+        flag = 'data/A_checkm/done.flag'
     output:
         tbl = 'data/A_checkm/checkm_summary.tsv',
         fig = 'data/A_checkm/checkm_summary.png'
