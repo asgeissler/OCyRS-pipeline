@@ -19,6 +19,10 @@ path.kegg <- unlist(snakemake@input[['kegg']])
 path.out.fig <- unlist(snakemake@output[['fig']])
 path.out.tbl <- unlist(snakemake@output[['tbl']])
 
+# make sure script output is placed in log file
+log <- file(unlist(snakemake@log), open="wt")
+sink(log)
+
 ################################################################################
 # Loading
 tax <- read_tsv(path.tax)
