@@ -4,13 +4,20 @@
 
 library(tidyverse)
 
-path.tax <- 'data/A_representatives/taxonomy.tsv'
-path.genes <- 'data/A_representatives/genes.tsv.gz'
-path.kegg <- 'data/A_representatives/kegg.tsv.gz'
+# path.tax <- 'data/A_representatives/taxonomy.tsv'
+# path.genes <- 'data/A_representatives/genes.tsv.gz'
+# path.kegg <- 'data/A_representatives/kegg.tsv.gz'
+
+path.tax <- unlist(snakemake@input[['tax']])
+path.genes <- unlist(snakemake@input[['genes']])
+path.kegg <- unlist(snakemake@input[['kegg']])
 
 
-path.out.fig <- 'data/B_OGs.jpeg'
-path.out.tbl <- 'data/B_OGs.tsv'
+# path.out.fig <- 'data/B_OGs.jpeg'
+# path.out.tbl <- 'data/B_OGs.tsv'
+
+path.out.fig <- unlist(snakemake@output[['fig']])
+path.out.tbl <- unlist(snakemake@output[['tbl']])
 
 ################################################################################
 # Loading

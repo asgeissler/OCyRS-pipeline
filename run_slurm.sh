@@ -11,8 +11,11 @@ fi
 echo "Targets: $target"
 
 # make sure output folder for log files exists
+if [ ! -d snakelogs ]; then
+  mkdir snakelogs
+fi
 if [ ! -d slurmlogs ]; then
-  mkdir -p slurmlogs
+  mkdir slurmlogs
 fi
 
 snakemake                                                            \

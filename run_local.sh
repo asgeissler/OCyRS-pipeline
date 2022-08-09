@@ -8,6 +8,11 @@ else
     target="$@"
 fi
 
+# make sure output folder for log files exists
+if [ ! -d snakelogs ]; then
+  mkdir snakelogs
+fi
+
 snakemake                    \
     --use-singularity        \
     --use-conda              \

@@ -19,6 +19,7 @@ def sample_wise(x, df):
     ))
 
 include: 'rules/A_genomes.smk'
+include: 'rules/B_ortho.smk'
 
 # Target rules
 rule all:
@@ -26,4 +27,5 @@ rule all:
         'data/A_progenomes/genomes.fna.gz',
         'data/A_progenomes/representatives.txt',
         'data/A_representatives/',
-        'data/A_checkm/checkm_summary.tsv'
+        'data/A_checkm/checkm_summary.tsv',
+        'data/B_OGs.tsv'

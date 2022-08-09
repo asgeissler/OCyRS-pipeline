@@ -13,6 +13,7 @@ data
 
 # Misc
 slurmlogs
+snakelogs
 *.Rproj
 
 #
