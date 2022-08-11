@@ -27,5 +27,6 @@ rule all:
         'data/A_progenomes/genomes.fna.gz',
         'data/A_progenomes/representatives.txt',
         'data/A_representatives/',
-        'data/A_checkm/checkm_summary.tsv',
-        'data/B_OGs.tsv'
+        #'data/A_checkm/checkm_summary.tsv',
+        'data/B_OGs.tsv',
+        'data/B_OGs-aln/done.flag'
