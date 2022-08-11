@@ -44,8 +44,8 @@ rule B_aln:
         mv $tmp.out.gz {output}
         """
 
+# make sure alignment runs after the B_cand_seqs checkpoint
 def B_aggregate_OG(wildcards, x):
-
     """
     List for all OGs the fasta sequence file with
         x = 'data/B_OGs/{term}.faa.gz'):
@@ -59,9 +59,25 @@ def B_aggregate_OG(wildcards, x):
     return sample_wise(x, df)
 
 
-
 rule B_aln_done:
     input:
         lambda wild: B_aggregate_OG(wild, 'data/B_OGs-aln/{term}.faa.gz')
     output:
         touch('data/B_OGs-aln/done.flag')
+
+
+# Assess the pairwise sequence ids in the alignments
+rule B_seqids:
+    input:
+        og = 'data/B_OGs.tsv',
+        kegg = 'data/A_representatives/kegg.tsv.gz',
+        flag = 'data/B_OGs-aln/done.flag'
+    output:
+        overlap = 'path-og.jpeg',
+        assoc = 'path-og.tsv'
+    log: 'snakelogs/B_seqids.txt'
+    threads: 8
+    container: 'renv/renv.sif'
+    conda: 'renv'
+    script:
+        "../scripts/B_seqids.R"

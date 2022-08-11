@@ -5,23 +5,33 @@
 library(tidyverse)
 library(ape)
 library(Biostrings)
+library(parallel)
 
 library(conflicted)
 
 conflict_prefer("filter", "dplyr")
 conflict_prefer("rename", "dplyr")
+conflict_prefer("first", "dplyr")
 
 # make sure script output is placed in log file
 log <- file(unlist(snakemake@log), open="wt")
 sink(log)
 
-################################################################################
+# the numer of cores to use
+cpus <- unlist(snakemake@threads)
+# cpus <- 20
 
-path.og <- 'data/B_OGs.tsv'
-path.kegg <- 'data/A_representatives/kegg.tsv.gz'
+###############################################################################
 
-out.overlap <- 'path-og.jpeg'
-out.assoc <- 'path-og.tsv'
+path.og <- unlist(snakemake@input[['og']])
+path.kegg <- unlist(snakemake@input[['kegg']])
+# path.og <- 'data/B_OGs.tsv'
+# path.kegg <- 'data/A_representatives/kegg.tsv.gz'
+
+out.overlap <- unlist(snakemake@output[['overlap']])
+out.assoc <- unlist(snakemake@output[['assoc']])
+# out.overlap <- 'path-og.jpeg'
+# out.assoc <- 'path-og.tsv'
 
 kegg.url <- 'https://rest.kegg.jp/link/pathway/ko'
 
@@ -123,26 +133,49 @@ print(paste(
 ################################################################################
 ################################################################################
 
-# Compute pairwise seuqnece identities in the alignments
+# Compute pairwise sequence identities in the alignments
 
-'data/B_OGs-aln/*.faa.gz' %>%
-  Sys.glob() %>%
-  set_names(
-    . %>%
+xs <- Sys.glob('data/B_OGs-aln/*.faa.gz')
+
+worker <- function(path) {
+  # Load
+  x <- readAAMultipleAlignment(path)
+  x <- as.AAbin(x)
+  # Pairwise distances
+  sid <- dist.gene(x, pairwise.deletion = TRUE, method = 'percentage')
+  sids <- sid[upper.tri(sid)]
+  
+  # dist to similarity
+  sids <- (1 - sids) * 100
+  
+  # prep stat
+  tibble(
+    og = path %>%
       basename() %>%
-      str_remove('.faa.gz$')
-  ) %>%
-  map(readAAMultipleAlignment) %>%
-  map(as.AAbin) %>%
-  map(dist.gene, pairwise.deletion = TRUE, method = 'percentage') -> og.sid
+      str_remove('.faa.gz$'),
+    min = min(sids, na.rm = TRUE),
+    avg = mean(sids, na.rm = TRUE),
+    sd = sd(sids, na.rm = TRUE),
+    max = max(sids, na.rm = TRUE)
+  )
+}
+
+cl <- makeForkCluster(cpus)
+res <- parLapply(cl, xs, worker)
+stopCluster(cl)
+
+og.sid <- bind_rows(res)
 
 ################################################################################
 
-d.mat %>% as.dist %>% hclust %>% plot
 
-d.mat[upper.tri(d.mat)] %>% hist
-d.mat[upper.tri(d.mat)] %>% summary
-d.mat[upper.tri(d.mat)] %>% sd
+og.sid %>%
+  map(~ .x[upper.tri(.x)] ) -> foo
+
+hist(foo$K00012)
+foo %>% map(summary)
+foo %>% map(mean)
+foo %>% map(sd)
 
 ################################################################################
 ################################################################################
