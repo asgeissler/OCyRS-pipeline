@@ -62,6 +62,6 @@ def B_aggregate_OG(wildcards, x):
 
 rule B_aln_done:
     input:
-        lambda wild: A_aggregate_genomes(wild, 'data/B_OGs-aln/{term}.faa.gz')
+        lambda wild: B_aggregate_OG(wild, 'data/B_OGs-aln/{term}.faa.gz')
     output:
         touch('data/B_OGs-aln/done.flag')

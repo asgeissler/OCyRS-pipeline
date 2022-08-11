@@ -29,6 +29,7 @@ file.path(path.seqs, '*/proteins.fasta.gz') %>%
 ###############################################################################
 # Per KO write out corersponding sequences
 
+dir.create(path.out)
 for(ko in unique(tbl$term)) {
   # ko <- 'K00003'
   print(ko)
