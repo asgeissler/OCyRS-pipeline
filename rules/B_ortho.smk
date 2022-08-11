@@ -34,12 +34,12 @@ rule B_aln:
     output:
         'data/B_OGs-aln/{term}.faa.gz'
     container:
-        'muscle:3.8.1551--h7d875b9_6'
+        'muscle\:3.8.1551--h7d875b9_6'
     shell:
         """
         tmp=$(mktemp)
         gunzip -c {input} > $tmp
-        muscle -align $tmp -output $tmp.out
+        muscle -in $tmp -out $tmp.out
         gzip $tmp.out
         mv $tmp.out.gz {output}
         """
