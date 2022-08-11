@@ -13,7 +13,7 @@ path.rep <- unlist(snakemake@input[['rep']])
 path.tax <- unlist(snakemake@input[['tax']])
 # project specific data
 path.genomes.seq <- unlist(snakemake@input[['genomes_seq']])
-path.proteins.seq <- unlist(snakemake@input[['genes_seq']])
+path.proteins.seq <- unlist(snakemake@input[['proteins_seq']])
 path.genes.seq <- unlist(snakemake@input[['genes_seq']])
 path.genes <- unlist(snakemake@input[['genes']])
 path.groups <- unlist(snakemake@input[['groups']])
