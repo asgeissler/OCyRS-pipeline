@@ -29,4 +29,5 @@ rule all:
         'data/A_representatives/',
         #'data/A_checkm/checkm_summary.tsv',
         'data/B_OGs.tsv',
-        'data/B_OGs-aln/done.flag'
+        'data/B_OGs-aln/done.flag',
+        'data/B_seqids/seqid.tsv'

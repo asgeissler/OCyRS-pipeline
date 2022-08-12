@@ -18,8 +18,8 @@ log <- file(unlist(snakemake@log), open="wt")
 sink(log)
 
 # the numer of cores to use
-cpus <- unlist(snakemake@threads)
-# cpus <- 20
+cpus <- as.integer(unlist(snakemake@threads))
+# cpus <- 16
 
 ###############################################################################
 
@@ -30,10 +30,15 @@ path.kegg <- unlist(snakemake@input[['kegg']])
 
 out.overlap <- unlist(snakemake@output[['overlap']])
 out.assoc <- unlist(snakemake@output[['assoc']])
+out.seqid <- unlist(snakemake@output[['seqid']])
+out.seqidt <- unlist(snakemake@output[['seqidt']])
 # out.overlap <- 'path-og.jpeg'
 # out.assoc <- 'path-og.tsv'
+# out.seqid <- 'seqid.jpeg'
+# out.seqidt <- 'seqid.tsv'
 
 kegg.url <- 'https://rest.kegg.jp/link/pathway/ko'
+
 
 ################################################################################
 
@@ -106,8 +111,10 @@ path.og2  %>%
   ylab('Avg. no. genes per OG') +
   theme_bw(18) -> p2
   
-cowplot::plot_grid(p1, p2, labels = 'AUTO', label_size = 18)
-ggsave(out.overlap, width = 14, height = 7)
+ggsave(
+  plot = cowplot::plot_grid(p1, p2, labels = 'AUTO', label_size = 18),
+  filename = out.overlap, width = 14, height = 7
+)
 
 
 # save pathway - OG association for later use
@@ -161,21 +168,43 @@ worker <- function(path) {
 }
 
 cl <- makeForkCluster(cpus)
-res <- parLapply(cl, xs, worker)
+res <- parLapply(cl, xs, safely(worker))
 stopCluster(cl)
 
-og.sid <- bind_rows(res)
+res %>%
+  map('error') %>%
+  discard(is.null) %>%
+  length %>%
+  assertthat::are_equal(0)
+
+res %>%
+  map('result') %>%
+  bind_rows -> og.sid
 
 ################################################################################
 
+og.sid %>%
+  ggplot(aes(avg, sd, col =  min)) +
+  scale_color_viridis_c(name = 'Min. observed seq. id') +
+  geom_point(size = 3, alpha = .7) +
+  xlab('Average pairwise sequence id') +
+  ylab('Standard deviation') +
+  theme_bw(18) +
+  theme(legend.position = 'bottom') -> p1
 
 og.sid %>%
-  map(~ .x[upper.tri(.x)] ) -> foo
+  ggplot(aes(avg)) +
+  stat_ecdf() +
+  xlab('Average pairwise sequence id') +
+  ylab('Emp. cum. density') +
+  theme_bw(18) -> p2
 
-hist(foo$K00012)
-foo %>% map(summary)
-foo %>% map(mean)
-foo %>% map(sd)
+ggsave(
+  plot = cowplot::plot_grid(p1, p2, labels = 'AUTO', label_size = 18),
+  filename = out.seqid, width = 14, height = 7
+)
+
+write_tsv(og.sid, out.seqidt)
 
 ################################################################################
 ################################################################################

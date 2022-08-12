@@ -39,7 +39,9 @@ rule B_aln:
         """
         tmp=$(mktemp)
         gunzip -c {input} > $tmp
-        muscle -in $tmp -out $tmp.out
+        # the -maxiters 2 is needed to preven segmentation fault for
+        # a handful of cases
+        muscle -in $tmp -out $tmp.out -maxiters 2
         gzip $tmp.out
         mv $tmp.out.gz {output}
         """
@@ -73,8 +75,10 @@ rule B_seqids:
         kegg = 'data/A_representatives/kegg.tsv.gz',
         flag = 'data/B_OGs-aln/done.flag'
     output:
-        overlap = 'path-og.jpeg',
-        assoc = 'path-og.tsv'
+        overlap = 'data/B_seqids/path-og.jpeg',
+        assoc = 'data/B_seqids/path-og.tsv',
+        seqid = 'data/B_seqids/seqid.jpeg',
+        seqidt = 'data/B_seqids/seqid.tsv'
     log: 'snakelogs/B_seqids.txt'
     threads: 8
     container: 'renv/renv.sif'
