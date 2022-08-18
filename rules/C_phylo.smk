@@ -3,14 +3,16 @@ rule C_phylo:
     input:
         'data/B_OGs-aln/{term}.faa.gz'
     output:
-        report    = 'data/C_phylo/{term}/report.txt'
-        ml        = 'data/C_phylo/{term}/maximumlikelihood.tree'
-        mldist    = 'data/C_phylo/{term}/maximumlikelihood.dist'
-        splits    = 'data/C_phylo/{term}/bootstrap-splits.nex'
-        consensus = 'data/C_phylo/{term}/bootstrap-consensus.tree'
+        report    = 'data/C_phylo/{term}/report.txt',
+        ml        = 'data/C_phylo/{term}/maximumlikelihood.tree',
+        mldist    = 'data/C_phylo/{term}/maximumlikelihood.dist',
+        splits    = 'data/C_phylo/{term}/bootstrap-splits.nex',
+        consensus = 'data/C_phylo/{term}/bootstrap-consensus.tree',
         screen    = 'data/C_phylo/{term}/screen.log'
     container:
         'iqtree\:2.2.0.3--hb97b32f_0'
+    resources:
+        mem_mb = 20000
     threads: 16
     shell:
         """
