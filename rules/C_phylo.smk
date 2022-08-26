@@ -1,4 +1,4 @@
-# Estimate tree per alignments
+# Estimate phylogenetic tree per alignments
 rule C_phylo:
     input:
         'data/B_OGs-aln/{term}.faa.gz'
@@ -35,10 +35,28 @@ rule C_phylo:
         rm -rf $tmp
         """
 
+# Remove outliers from tree
+rule C_shrink:
+    input:
+        'data/C_phylo/{term}/bootstrap-consensus.tree'
+    output:
+        'data/C_shrink/{term}/output.tree',
+        'data/C_shrink/{term}/output_summary.txt',
+        'data/C_shrink/{term}/output.txt'
+    log: 'snakelogs/C_shrink/{term}.txt'
+    container: 'treeshrinkenv/treeshrinkenv.sif'
+    conda: 'treeshrinkenv'
+    script:
+        """
+        o=$(basename {output[1]})
+        run_treeshrink.py  -t {input} - O $o
+        """
+
 # trigger tree per alignment, using helper function from B_*
 rule C_aggregate:
     input:
-        lambda wild: B_aggregate_OG(wild, 'data/C_phylo/{term}/report.txt')
+        lambda wild: B_aggregate_OG(wild, 'data/C_phylo/{term}/report.txt'),
+        lambda wild: B_aggregate_OG(wild, 'data/C_shrink/{term}/output.txt')
     output:
         touch('data/C_aggregate.flag')
 
