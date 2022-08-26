@@ -10,3 +10,11 @@ __default__:
 A_checkm:
     cpus: 8
     mem: 40GB
+
+B_seqids:
+    cpus: 8
+
+C_phylo:
+    cpus: 16 
+    mem: 20GB
+    time: 0-10:00:00
