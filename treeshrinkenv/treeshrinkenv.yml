@@ -1,0 +1,8 @@
+name: treeshrinkenv
+channels:
+  - smirarab
+  - conda-forge
+  - defaults
+dependencies:
+  - treeshrink
+  - r-base=3.6.2
