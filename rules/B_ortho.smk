@@ -65,7 +65,9 @@ rule B_aln_done:
     input:
         lambda wild: B_aggregate_OG(wild, 'data/B_OGs-aln/{term}.faa.gz')
     output:
-        touch('data/B_OGs-aln/done.flag')
+        # make protected to prevent triggering subsequent rules to run
+        # over and over
+        protected(touch('data/B_OGs-aln/done.flag'))
 
 
 # Assess the pairwise sequence ids in the alignments
