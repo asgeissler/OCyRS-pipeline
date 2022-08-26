@@ -39,7 +39,6 @@ software dependencies. The only hard-requirement are
 2. Singularity version $\ge 3.9$
 3. [Miniconda3](https://docs.conda.io/en/latest/miniconda.html) + Mamba
 3. [Snakemake](https://snakemake.github.io/) $\ge 7.9.0$
-4. Git [large file support](https://git-lfs.github.com/) plugin
 
 ### Linux
 
