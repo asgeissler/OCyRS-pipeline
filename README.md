@@ -101,7 +101,11 @@ The corresponding conda environment was for maximal reproducibility
 [conda-lock'ed](https://github.com/conda-incubator/conda-lock),
 such that the exact versions are specified for linux `x64`
 computer architectures, in case you would like to re-build the container.
-
+An additional container for the
+[TreeShrink](https://github.com/uym2/TreeShrink)
+software was generated in the folder `treeshrinkenv`.
+All additional containers are retrieved via the
+GitHubs Container Repository of this project.
 
 
 ## How to use 
