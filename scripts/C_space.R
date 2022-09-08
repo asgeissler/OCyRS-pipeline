@@ -81,8 +81,8 @@ dedist <- function(trees, a, b) {
   a <- trees[[a]] ; b <- trees[[b]]
   # focus on shared nodes
   shared <- intersect(a$tip.label, b$tip.label)
-  a2 <- keep.tip(a, shared)
-  b2 <- keep.tip(b, shared)
+  a2 <- keep.tip(a, shared) %>% unroot()
+  b2 <- keep.tip(b, shared) %>% unroot()
   #  Kuhner and Felsenstein scoring as described in
   # Kuhner M. K. & Felsenstein J. 1994. Simulation comparison of phylogeny
   # algorithms under equal and unequal evolutionary rates. Molecular Biology
@@ -152,6 +152,7 @@ with(res.shrunk.tbl, cor.test(shared, dist)) %>% print()
 # idea: substitute by max observed distance
 
 mk.mat <- function(i) {
+  # i <- res.raw.tbl
   # i <- res.shrunk.tbl
   # Create empty matrix
   ns <- i %>%
@@ -162,46 +163,37 @@ mk.mat <- function(i) {
     magrittr::set_rownames(ns) %>%
     magrittr::set_colnames(ns)
   # Fill values both triangles
+  diag(i.mat) <- 0
   i.mat[cbind(i$a, i$b)] <- i$dist
   i.mat[cbind(i$b, i$a)] <- i$dist
-  # the distance per gene at which outlier start
-  dm <- apply(i.mat, 1, function(x) {
-    quantile(x, .75, na.rm = TRUE) + 1.5 * IQR(x, na.rm = TRUE) 
-  })
-  
-  dm.vec <-rep(dm, each = length(ns))
-  dm.vec2 <-rep(dm, times = length(ns))
-  # The vector can be used to make a matrix by:
-  # matrix(dm.vec, nrow = length(ns), ncol = length(ns))
-  # thus the vectors correspond to the transposition of each other
-  # => use to compute local max observed outlier distance between a pair
-  map2(dm.vec, dm.vec2, c) %>%
-    map(max) %>%
-    unlist -> dm.dat
-  
-  dm.mat <-matrix(dm.dat, nrow = length(ns), ncol = length(ns))
-  assertthat::assert_that(isSymmetric(dm.mat))
-  
-  mask <- is.na(i.mat)
-  i.mat[mask] <- dm.dat[mask]
+  # Replace na 
+  # i.mat[is.na(i.mat)] <- quantile(i$dist, .75, na.rm = TRUE) +
+  #   1.5 * IQR(i$dist, na.rm = TRUE)
+  # i.mat[is.na(i.mat)] <- max(i$dist)
+  i.mat[is.na(i.mat)] <- mean(i$dist)
   
   # Fill diagonal, should be after the averaging to not influence impute value
-  diag(i.mat) <- 0
   
   # assure symmetry
   assertthat::assert_that(isSymmetric(i.mat))
   return(i.mat)
 }
 
-raw.mat <- mk.mat(res.raw.tbl)
+# raw.mat <- mk.mat(res.raw.tbl)
 shrunk.mat <- mk.mat(res.shrunk.tbl)
+# scale by #shared
+res.shrunk.tbl %>%
+  mutate(dist = dist * shared) %>%
+  mk.mat() -> shrunk2.mat
 
 ################################################################################
 # Explore the space of trees according to a PCoA of the distance matrix
 
 list(
-  'Full trees' = raw.mat,
-  'Outlier pruned' = shrunk.mat
+  # 'Full trees' = raw.mat,
+  # 'Outlier pruned' = shrunk.mat
+  'Topology distances' = shrunk.mat,
+  'Scaled by no. shared species' = shrunk2.mat
 ) %>%
   map(as.dist) %>%
   map(cmdscale) %>%
@@ -211,7 +203,7 @@ list(
   bind_rows() -> mds
 
 mds %>%
- muate(ref = !str_detect(tree, '^K[0-9]*$')) -> dat
+ mutate(ref = !str_detect(tree, '^K[0-9]*$')) -> dat
 dat %>% filter(ref) -> mds.ref
 dat %>%
   ggplot(aes(MDS1, MDS2, color = ref)) +
@@ -229,3 +221,16 @@ dat %>%
   theme(legend.position = 'hide')
 
 ################################################################################
+
+res.shrunk.tbl %>%
+  ggplot(aes(shared, dist)) +
+  geom_hex(bins = 100) +
+  scale_fill_viridis_c() +
+  scale_x_log10() +
+  scale_y_log10()
+
+cat('Correlation test of no. shared species to topology distance')
+cat('Raw trees')
+with(res.raw.tbl, cor.test(log(shared), sqrt(dist))) %>% print()
+cat('Shrunk trees')
+with(res.shrunk.tbl, cor.test(log(shared), sqrt(dist))) %>% print()
