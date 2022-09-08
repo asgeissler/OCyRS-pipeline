@@ -1,7 +1,7 @@
 # Estimate phylogenetic tree per alignments
 rule C_phylo:
     input:
-        'data/B_OGs-aln/{term}.faa.gz'
+        'data/B_OGs-aln-filtered/{term}.faa.gz'
     output:
         report    = 'data/C_phylo/{term}/report.txt',
         ml        = 'data/C_phylo/{term}/maximumlikelihood.tree',
@@ -46,10 +46,17 @@ rule C_shrink:
     log: 'snakelogs/C_shrink/{term}.txt'
     container: 'treeshrinkenv/treeshrinkenv.sif'
     conda: 'treeshrinkenv'
-    script:
+    shell:
         """
-        o=$(basename {output[1]})
-        run_treeshrink.py  -t {input} - O $o
+        run_treeshrink.py                              \
+            --tree {input}                             \
+            `# Highly recommended for large trees`     \
+            --centroid                                 \
+            `# After manual inspection, more sensitive`\
+            `# filtering than default 0.05 is needed`  \
+            --quantiles 0.10                           \
+            --outdir 'data/C_shrink/{wildcards.term}/' \
+            > {log}
         """
 
 # trigger tree per alignment, using helper function from B_*
