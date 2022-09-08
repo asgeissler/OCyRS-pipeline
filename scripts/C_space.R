@@ -1,8 +1,10 @@
 library(tidyverse)
-library(parallel)
+library(furrr)
 library(ape)
 
-path.trees <- 'data/C_phylo/*/bootstrap-consensus.tree'
+path.raw.trees <- 'data/C_phylo/*/bootstrap-consensus.tree'
+path.shrunk.trees <- 'data/C_shrink/*/output.tree'
+path.ref.trees <- 'reference-trees/*.tree'
 
 # make sure script output is placed in log file
 # log <- file(unlist(snakemake@log), open="wt")
@@ -10,60 +12,77 @@ path.trees <- 'data/C_phylo/*/bootstrap-consensus.tree'
 
 # the numer of cores to use
 # cpus <- as.integer(unlist(snakemake@threads))
-cpus <- 16
-
-cl <- makeForkCluster(cpus)
+cpus <- availableCores()
+plan(multisession, workers = cpus) 
 
 ################################################################################
-
-xs <- path.trees %>%
+# glob lookup all tree files
+raw <- path.raw.trees %>%
   Sys.glob() %>%
-  set_names(. %>% dirname %>% basename) %>%
-  map(read.tree)
+  set_names(. %>% dirname %>% basename)
+
+shrunk <- path.shrunk.trees %>%
+  Sys.glob() %>%
+  set_names(. %>% dirname %>% basename)
+
+ref <- path.ref.trees %>%
+  Sys.glob() %>%
+  set_names(. %>% basename %>% fs::path_ext_remove())
+
+################################################################################
+# load trees
+  
+raw.trees    <- future_map(c(raw, ref), read.tree)
+shrunk.trees <- future_map(c(shrunk, ref), read.tree)
 
 ################################################################################
 
-# Remove multi-gene entries, only keep species info on tip
+# De-duplicate species entries.
+# The tip lapels are taxid.bioproject.gene
+# or taxid.gcf.name / taxid.name for the reference trees
+# Per species (taxid) keep gene that is on average closest to alll other
+# leaves in the tree (mean cophenetic distance).
+# Afterward, only keep taxid in labels
 despec <- function(t) {
-  # t <- xs$K00135
   tibble(
     gene = t$tip.label,
-    spec = str_remove(gene, '\\.[^.]*$'),
-    med = apply(cophenetic.phylo(t), 1, median)
+    taxid = str_remove(gene, '\\..*$'),
+    avgdist = apply(cophenetic.phylo(t), 1, mean)
   ) %>%
-    group_by(spec) %>%
-    slice_min(med, n = 1, with_ties = FALSE) %>%
+    group_by(taxid) %>%
+    # only keep the one of lowest avgdist,
+    # but exactly one, if with ties choose arbriatrily
+    slice_min(avgdist, n = 1, with_ties = FALSE) %>%
     ungroup() -> dat
   t2 <- keep.tip(t, dat$gene)
-  t2$tip.label <- dat$spec
+  t2$tip.label <- dat$taxid
   return(t2)
 }
 
-# small test example in which A.1.b should be removed
+# small test example
 assertthat::are_equal(
   read.tree(text = '((A.1.a:1,A.1.b:1.5):2,(B.2.a:1,C.3.a:1):3);') %>%
     despec() %>%
     unroot %>%
     reorder.phylo("postorder"),
-  read.tree(text = '(A.1:3,(B.2:1,C.3:1):3);') %>%
+  read.tree(text = '(A:3,(B:1,C:1):3);') %>%
     unroot %>%
     reorder.phylo("postorder")
 )
 
 # despec input trees
-xs2 <- xs %>% map(despec)
+raw.despec.trees    <- future_map(raw.trees, despec)
+shrunk.despec.trees <- future_map(shrunk.trees, despec)
 
 ################################################################################
-# For a pair, focus on shared species and compute distance
-dedist <- function(x) {
-  # a <- xs2$K00135 ; b <- xs2$K02699
-  a <- x[[1]] ; b <- x[[2]]
-  a <- xs2[[a]] ; b <- xs2[[b]]
+# For a pair, of species de-duplicated trees, compute the topology distance
+# on the set of shared species
+dedist <- function(trees, a, b) {
+  a <- trees[[a]] ; b <- trees[[b]]
+  # focus on shared nodes
   shared <- intersect(a$tip.label, b$tip.label)
-  
   a2 <- keep.tip(a, shared)
   b2 <- keep.tip(b, shared)
-  
   #  Kuhner and Felsenstein scoring as described in
   # Kuhner M. K. & Felsenstein J. 1994. Simulation comparison of phylogeny
   # algorithms under equal and unequal evolutionary rates. Molecular Biology
@@ -75,278 +94,138 @@ dedist <- function(x) {
 }
 
 # All pairwise comparisons
-crossing(a = names(xs), b = names(xs)) -> tasks
+assertthat::are_equal(names(raw.despec.trees),
+                      names(shrunk.despec.trees))
+tasks <- crossing(a = names(raw.despec.trees),
+                  b = names(shrunk.despec.trees)) %>%
+  filter(a < b)
 
-# res <- parRapply(cl, head(tasks), safely(dedist))
-res <- parRapply(cl, tasks, safely(dedist))
+# suppress erroneous warnings of
+# "unexpectedly generated random numbers without specifying argument 'seed'."
+# seems to be a bug in furrr
+f.raw <- safely(partial(dedist, trees = raw.despec.trees))
+f.shrunk <- safely(partial(dedist, trees = shrunk.despec.trees))
 
-res %>%
-  map(function(x) {
-    if (is.null(x$result)) {
-      tibble(
-        shared = NA_real_,
-        dist = NA_real_
-      )
-    } else {
-      tibble(
-        shared = as.numeric(x$result$shared),
-        dist = as.numeric(x$result$dist)
-      )
-    }
-  }) %>%
-  bind_rows() -> res2
-    
-# bind_cols(head(tasks), res2)
-pds <- bind_cols(tasks, res2)
+suppressWarnings({
+  res.raw <- future_pmap(tasks, f.raw)
+  res.shrunk <- future_pmap(tasks, f.shrunk)
+})
 
 ################################################################################
+# Collect distances as table
 
+mk.tbl <- function(i) {
+  # i <- res.raw
+  i %>%
+    map('error') %>%
+    map(is.null) %>%
+    unlist -> ok.mask
+  table(ok.mask)
+  
+  i[ok.mask] %>%
+    map('result') %>%
+    future_map(function(j) {
+      j$dist <- as.numeric(j$dist)
+      as_tibble(j)
+    }) %>%
+    bind_rows() -> dat
+  
+  dat2 <- bind_cols(tasks[ok.mask, ], dat)
+}
+
+res.raw.tbl <- mk.tbl(res.raw)
+res.shrunk.tbl <- mk.tbl(res.shrunk)
+
+################################################################################
 # Inspect to what extend the observed distances depend on the number of shared
 # species
 
 cat('Correlation test of no. shared species to topology distance')
-with(pds, cor.test(shared, dist)) %>% print()
-
-pds %>%
-  ggplot(aes(shared, dist)) +
-  geom_hex(bins=100) +
-  scale_fill_viridis_c() +
-  geom_smooth(method = 'lm', se = FALSE, color = 'red') +
-  xlab('No. shared species') +
-  ylab('Pair-wise tree topology distance') +
-  theme_bw(18)
-  
+cat('Raw trees')
+with(res.raw.tbl, cor.test(shared, dist)) %>% print()
+cat('Shrunk trees')
+with(res.shrunk.tbl, cor.test(shared, dist)) %>% print()
 
 ################################################################################
-# Explore the space of trees accordint to a PCoA of the distance matrix
+# Build matrices
+# note: The distance is possible to fail if not enough species were shared
+# idea: substitute by max observed distance
 
-# Issue: some values are NA, impute with average
-pds %>%
-  drop_na() %>%
-  group_by(a) %>%
-  summarize(avg = mean(dist)) %>%
-  ungroup %>%
-  right_join(pds, 'a') %>% 
-  mutate(d2 = ifelse(is.na(dist), avg, dist)) -> pds.imputed
-
-# Buld matrix
-pds.imputed %>%
-  select(a, b, d2) %>%
-  spread(b, d2) -> foo
-foo %>%
-  select(- a) %>%
-  as.matrix() %>%
-  magrittr::set_rownames(foo$a) -> pds.mat
-# assure symmetry, due to average numerically not perfectly symmetric in individual
-# cases, but ignore for now
-# assertthat::assert_that(isSymmetric(pds.mat))
-
-
-# pds.mat[upper.tri(pds.mat)] %>%
-#   hist
-
-# helper to plot MDS scaled distances and highligh potential outliers
-mds.helper <- function(mat, outlier = 3) {
-  pds.scl <- mat %>%
-    as.dist() %>%
-    cmdscale()
+mk.mat <- function(i) {
+  # i <- res.shrunk.tbl
+  # Create empty matrix
+  ns <- i %>%
+    select(a, b) %>%
+    unlist %>%
+    unique
+  i.mat <- matrix(NA_real_, nrow = length(ns), ncol = length(ns)) %>%
+    magrittr::set_rownames(ns) %>%
+    magrittr::set_colnames(ns)
+  # Fill values both triangles
+  i.mat[cbind(i$a, i$b)] <- i$dist
+  i.mat[cbind(i$b, i$a)] <- i$dist
+  # the distance per gene at which outlier start
+  dm <- apply(i.mat, 1, function(x) {
+    quantile(x, .75, na.rm = TRUE) + 1.5 * IQR(x, na.rm = TRUE) 
+  })
   
+  dm.vec <-rep(dm, each = length(ns))
+  dm.vec2 <-rep(dm, times = length(ns))
+  # The vector can be used to make a matrix by:
+  # matrix(dm.vec, nrow = length(ns), ncol = length(ns))
+  # thus the vectors correspond to the transposition of each other
+  # => use to compute local max observed outlier distance between a pair
+  map2(dm.vec, dm.vec2, c) %>%
+    map(max) %>%
+    unlist -> dm.dat
   
-  pds.scl %>%
-    magrittr::set_colnames(c('x', 'y')) %>%
-    as_tibble(rownames = 'OG') %>%
-    mutate(
-      dx = x - mean(x),
-      dy = y - mean(y),
-      sdx = abs(dx) / sd(x),
-      sdy = abs(dy) / sd(y),
-      mx = sdx > outlier,
-      my = sdy > outlier,
-      m = mx | my,
-      l = ifelse(m, OG, NA_character_)
-    ) -> dat
-  dat %>%
-    ggplot(aes(x, y, label = l)) +
-    geom_point(size = 3, alpha = 0.5) +
-    ggrepel::geom_label_repel(size = 7) +
-    xlab('MDS 1') +
-    ylab('MDS 2') +
-    theme_bw(18) -> p
-
-  list(dat, ggExtra::ggMarginal(p, type = 'hist'))
+  dm.mat <-matrix(dm.dat, nrow = length(ns), ncol = length(ns))
+  assertthat::assert_that(isSymmetric(dm.mat))
+  
+  mask <- is.na(i.mat)
+  i.mat[mask] <- dm.dat[mask]
+  
+  # Fill diagonal, should be after the averaging to not influence impute value
+  diag(i.mat) <- 0
+  
+  # assure symmetry
+  assertthat::assert_that(isSymmetric(i.mat))
+  return(i.mat)
 }
 
-foo <- mds.helper(pds.mat)
-pds.scl <- foo[[1]]
-pds.scl.mds <- foo[[2]]
-
-pds.scl.mds
+raw.mat <- mk.mat(res.raw.tbl)
+shrunk.mat <- mk.mat(res.shrunk.tbl)
 
 ################################################################################
-# Query for mot extreme outlier for assessment
+# Explore the space of trees according to a PCoA of the distance matrix
 
-pds.scl %>%
-  mutate(msd = pmax(sdx, sdy)) %>%
-  slice_max(msd, n = 1, with_ties = FALSE) %>%
-  pull(OG) -> extremeout
+list(
+  'Full trees' = raw.mat,
+  'Outlier pruned' = shrunk.mat
+) %>%
+  map(as.dist) %>%
+  map(cmdscale) %>%
+  map(magrittr::set_colnames, c('MDS1', 'MDS2'))  %>%
+  map(as_tibble, rownames = 'tree') %>%
+  map2(names(.), ~ mutate(.x, mode = .y)) %>%
+  bind_rows() -> mds
 
-xs[[extremeout]] %>%
-  ladderize() %>%
-  plot(show.tip.label = FALSE)
-
-################################################################################
-################################################################################
-# Follow the idea of
-# Mai, Uyen, and Siavash Mirarab.
-# “TreeShrink: Fast and Accurate Detection of Outlier Long Branches in
-#   Collections of Phylogenetic Trees.”
-# BMC Genomics 19, no. S5 (May 2018): 272.
-# https://doi.org/10.1186/s12864-018-4620-2.
-
-# Out of curiosity keep track of the length of splits
-# -> might provide an additional level of support
-
-# For comparison compute overall split distance distribution
-split.dists <- function(x) {
-  # x <- xs2$K05592
-  x <- reorder.phylo(unroot(x), "postorder")
-  nx <- length(x$tip.label)
-  # in the reordered unrooted tree, all internal nodes have indices
-  # >= nx + 2
-  # splits are
-  bps <- ape:::bipartition2(x$edge, nx)
-  # and the boot split distances are those corresponding to entries in which
-  # the edge table's 2nd column has an internal node
-  mask <- between(x$edge[, 2], nx + 2, nx + length(bps))
-  tmp <- tibble(
-    splitdist =  x$edge.length[ mask ],
-    # the 'left split' sizes, first entry is full tree
-    size = map(bps[ -1 ], length) %>% unlist
-  ) %>%
-    mutate(
-      # check the 'right split' and take minimum
-      size = pmin(size, length(x$tip.label) - size)
-    ) 
-  # Also include distances of the tips, though not a split, individual
-  # species might also not belong to the tree
-  # those are edges starting at tips, which are the lowest index
-  tibble(
-    splitdist =  x$edge.length[ x$edge[, 2] <= length(x$tip.label) ],
-    size = 1
-  ) %>%
-    bind_rows(tmp)
-}
-
-parLapply(cl, xs, split.dists) %>%
-  map2(names(.), ~ mutate(.x, OG = .y)) %>%
-  bind_rows() -> overall.splits
-
-
-# Compute tree diameter inflation of splits
-# Here, the algorithm loop structure is similar to the
-# split distances computed by
-# ape:::.dist.topo.score
-
-# tree diamter
-helper.diameter <- function(x) {
-  dist.nodes(x) %>% max
-}
-
-# For a set of tip indices, remove corresponding tips
-# and compute diamter
-helper.trim.diam <- function(x, ix, drop = TRUE) {
-  if (drop) {
-    x <-  drop.tip(x, ix)
-  } else {
-    x <-  keep.tip(x, ix)
-  }
-  helper.diameter(x)
-}
-
-dia.ratio <- function(x) {
-  x.dia <- helper.diameter(x)
-  
-  # Start loop similar to split.dists
-  x <- reorder.phylo(unroot(x), "postorder")
-  nx <- length(x$tip.label)
-  # in the reordered unrooted tree, all internal nodes have indices
-  # >= nx + 2
-  # splits are
-  bps <- ape:::bipartition2(x$edge, nx)
-  # and the boot split distances are those corresponding to entries in which
-  # the edge table's 2nd column has an internal node
-  
-  # the 'left split' sizes, first entry is full tree, exclude
-  bps <- bps[ -1 ]
-  
-  # diameters in left split
-  bps %>%
-    map(helper.trim.diam, x = x) %>%
-    unlist -> l.dia
-  # diameters in right split
-  bps %>%
-    map(helper.trim.diam, x = x, drop = FALSE) %>%
-    unlist -> r.dia
-  
-  # For splits, check impact on diamter
-  mask <- between(x$edge[, 2], nx + 2, nx + length(bps) + 1)
-  tibble(
-    splitdist =  x$edge.length[ mask ],
-    # the 'left split' sizes, first entry is full tree
-    l.size = map(bps, length) %>% unlist,
-    l.dia = l.dia,
-    r.size = nx - l.size,
-    r.dia = r.dia,
-    bps = bps
-  )  -> tmp
-    
-  # determine which side of the split is the largest part remaining
-  tmp %>%
-    mutate(
-      left = l.size > r.size,
-      trim.size = ifelse(left, l.size, r.size),
-      trim.dia = ifelse(left, l.dia, r.dia)
-    ) %>%
-    transmute(
-      bps, trim.size, trim.dia, splitdist,
-      # the bps indicate what was removed, so make sure to remember
-      # that if the result is from the right, then those should be kept
-      keep.tip = ! left
-    ) -> tmp2
-    
-  # Also include distances of the tips, though not a split, individual
-  # species might also not belong to the tree
-  # those are edges starting at tips, which are the lowest index
-  tibble(
-    splitdist =  x$edge.length[ x$edge[, 2] <= length(x$tip.label) ],
-    trim.size = nx - 1,
-    keep.tip = FALSE,
-    bps = as.list(1:nx),
-    trim.dia = map(1:nx, helper.trim.diam, x = x) %>% unlist
-  ) %>%
-    bind_rows(tmp2) -> tmp3
-  
-  # determine which split maximize the diamter shrink factor
- tmp3  %>%
-   mutate(shrink = x.dia / trim.dia) %>%
-   slice_max(shrink) %>%
-   # in case of multiple maxia, take the one with most tips remaining
-   slice_max(shrink) %>%
-   # and if then still, the next best one with max splitdist
-   slice_max(splitdist, with_ties = FALSE)
-}
-
-res <- parLapply(cl, xs, safely(dia.ratio))
-parLapply(cl, xs, dia.ratio) %>%
-  map2(names(.), ~ mutate(.x, OG = .y)) %>%
-  bind_rows() -> shrinks
-
+mds %>%
+ muate(ref = !str_detect(tree, '^K[0-9]*$')) -> dat
+dat %>% filter(ref) -> mds.ref
+dat %>%
+  ggplot(aes(MDS1, MDS2, color = ref)) +
+  ggsci::scale_color_jama() +
+  geom_point(size = 3, alpha = 0.5) +
+  geom_point(size = 3, alpha = 0.5, data = mds.ref) +
+  ggrepel::geom_label_repel(
+    aes(label = tree), data = mds.ref,
+    size = 7,
+    # nudge_x = 10, nudge_y = -5,
+    force = 500,
+    alpha = 0.7, show.legend = FALSE) +
+  facet_wrap(~ mode, scales = 'free') +
+  theme_bw(18)  +
+  theme(legend.position = 'hide')
 
 ################################################################################
-################################################################################
-################################################################################
-################################################################################
-
-
-
-stopCluster(cl)
