@@ -13,7 +13,7 @@ rule C_phylo:
         'iqtree\:2.2.0.3--hb97b32f_0'
     resources:
         mem_mb = 20000
-    threads: 16
+    threads: 32
     shell:
         """
         tmp=$(mktemp -d)
@@ -59,11 +59,21 @@ rule C_shrink:
             > {log}
         """
 
-# trigger tree per alignment, using helper function from B_*
-rule C_aggregate:
+# Compute Pairwise Topology distances and check out MDS plot
+# incl. comparison with reference trees.
+rule C_space:
     input:
-        lambda wild: B_aggregate_OG(wild, 'data/C_phylo/{term}/report.txt'),
-        lambda wild: B_aggregate_OG(wild, 'data/C_shrink/{term}/output.txt')
+        raw = lambda wild: B_aggregate_OG(wild, 'data/C_phylo/{term}/bootstrap-consensus.tree'),
+        shrunk = lambda wild: B_aggregate_OG(wild, 'data/C_shrink/{term}/output.txt')
+        refs = glob('reference-trees/*.tree')
     output:
-        touch('data/C_aggregate.flag')
+        raw = 'data/C_space/pairwise-distances-raw.tsv',
+        shrunk = 'data/C_space/pairwise-distances-shrunk.tsv',
+        mds = 'data/C_space/mds-data.tsv',
+        mdsfig = 'data/C_space/mds.jpeg'
+    container: 'renv/renv.sif'
+    threads: 32
+    conda: 'renv'
+    script:
+        '../scripts/C_space.R'
 

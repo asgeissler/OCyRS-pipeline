@@ -2,31 +2,41 @@ library(tidyverse)
 library(furrr)
 library(ape)
 
-path.raw.trees <- 'data/C_phylo/*/bootstrap-consensus.tree'
-path.shrunk.trees <- 'data/C_shrink/*/output.tree'
-path.ref.trees <- 'reference-trees/*.tree'
+# path.raw.trees <- 'data/C_phylo/*/bootstrap-consensus.tree'
+# path.shrunk.trees <- 'data/C_shrink/*/output.tree'
+# path.ref.trees <- 'reference-trees/*.tree'
+
+path.raw.trees <- unlist(snakemake@input[['raw']])
+path.shrunk.trees <- unlist(snakemake@input[['shrunk']])
+path.ref.trees <- unlist(snakemake@input[['refs']])
+
+out.raw <- unlist(snakemake@output[['raw']])
+out.shrunk <- unlist(snakemake@output[['shrunk']])
+out.mds <- unlist(snakemake@output[['mds']])
+out.mds.fig <- unlist(snakemake@output[['mdsfig']])
+
 
 # make sure script output is placed in log file
-# log <- file(unlist(snakemake@log), open="wt")
-# sink(log)
+log <- file(unlist(snakemake@log), open="wt")
+sink(log)
 
 # the numer of cores to use
-# cpus <- as.integer(unlist(snakemake@threads))
-cpus <- availableCores()
+# cpus <- availableCores()
+cpus <- as.integer(unlist(snakemake@threads))
 plan(multisession, workers = cpus) 
 
 ################################################################################
-# glob lookup all tree files
+# (glob lookup all tree files during development only)
 raw <- path.raw.trees %>%
-  Sys.glob() %>%
+  # Sys.glob() %>%
   set_names(. %>% dirname %>% basename)
 
 shrunk <- path.shrunk.trees %>%
-  Sys.glob() %>%
+  # Sys.glob() %>%
   set_names(. %>% dirname %>% basename)
 
 ref <- path.ref.trees %>%
-  Sys.glob() %>%
+  # Sys.glob() %>%
   set_names(. %>% basename %>% fs::path_ext_remove())
 
 ################################################################################
@@ -136,6 +146,9 @@ mk.tbl <- function(i) {
 res.raw.tbl <- mk.tbl(res.raw)
 res.shrunk.tbl <- mk.tbl(res.shrunk)
 
+write_tsv(res.raw.tbl, out.raw)
+write_tsv(res.shrunk.tbl, out.shrunk)
+
 ################################################################################
 # Inspect to what extend the observed distances depend on the number of shared
 # species
@@ -190,9 +203,8 @@ res.shrunk.tbl %>%
 # Explore the space of trees according to a PCoA of the distance matrix
 
 list(
-  # 'Full trees' = raw.mat,
-  # 'Outlier pruned' = shrunk.mat
-  'Topology distances' = shrunk.mat,
+  'Full trees' = raw.mat,
+  'Outlier pruned' = shrunk.mat,
   'Scaled by no. shared species' = shrunk2.mat
 ) %>%
   map(as.dist) %>%
@@ -207,30 +219,22 @@ mds %>%
 dat %>% filter(ref) -> mds.ref
 dat %>%
   ggplot(aes(MDS1, MDS2, color = ref)) +
-  ggsci::scale_color_jama() +
+  ggsci::scale_color_jama(name = 'Reference tree') +
   geom_point(size = 3, alpha = 0.5) +
   geom_point(size = 3, alpha = 0.5, data = mds.ref) +
   ggrepel::geom_label_repel(
     aes(label = tree), data = mds.ref,
     size = 7,
     # nudge_x = 10, nudge_y = -5,
-    force = 500,
+    # force = 500,
+    force = 100,
     alpha = 0.7, show.legend = FALSE) +
   facet_wrap(~ mode, scales = 'free') +
+  xlim(-5, 10) +
+  ylim(-6, 6) +
   theme_bw(18)  +
-  theme(legend.position = 'hide')
+  theme(legend.position = 'bottom')
 
+write_tsv(dat, out.mds)
+ggsave(out.mds.fig, dpi = 400, width = 16, height = 9)
 ################################################################################
-
-res.shrunk.tbl %>%
-  ggplot(aes(shared, dist)) +
-  geom_hex(bins = 100) +
-  scale_fill_viridis_c() +
-  scale_x_log10() +
-  scale_y_log10()
-
-cat('Correlation test of no. shared species to topology distance')
-cat('Raw trees')
-with(res.raw.tbl, cor.test(log(shared), sqrt(dist))) %>% print()
-cat('Shrunk trees')
-with(res.shrunk.tbl, cor.test(log(shared), sqrt(dist))) %>% print()

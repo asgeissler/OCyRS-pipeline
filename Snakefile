@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from glob import glob
 
 from snakemake.utils import validate, min_version
 min_version("7.9.0")
@@ -34,4 +35,4 @@ rule all:
         'data/B_OGs.tsv',
         'data/B_OGs-aln-filtered/done.flag',
         'data/B_seqids/seqid.tsv',
-        'data/C_aggregate.flag'
+        'data/C_space/mds.jpeg'
