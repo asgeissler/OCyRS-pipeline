@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from glob import glob
 
 from snakemake.utils import validate, min_version
 min_version("7.9.0")
@@ -21,6 +22,7 @@ def sample_wise(x, df):
 include: 'rules/A_genomes.smk'
 include: 'rules/B_ortho.smk'
 include: 'rules/C_phylo.smk'
+include: 'rules/D_search-seqs.smk'
 
 # Target rules
 rule all:
@@ -28,8 +30,11 @@ rule all:
         'data/A_progenomes/genomes.fna.gz',
         'data/A_progenomes/representatives.txt',
         'data/A_representatives/',
-        #'data/A_checkm/checkm_summary.tsv',
+        #
+        ##'data/A_checkm/checkm_summary.tsv',
+        #
         'data/B_OGs.tsv',
-        'data/B_OGs-aln/done.flag',
+        'data/B_OGs-aln-filtered/done.flag',
         'data/B_seqids/seqid.tsv',
-        'data/C_aggregate.flag'
+        'data/C_space/mds.jpeg',
+        'data/D_intergenic.jpeg'

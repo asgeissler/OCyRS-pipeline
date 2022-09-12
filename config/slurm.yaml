@@ -15,6 +15,16 @@ B_seqids:
     cpus: 8
 
 C_phylo:
-    cpus: 16 
+    cpus: 32 
     mem: 20GB
-    time: 0-10:00:00
+    # Though most alignment phylogenetic trees can be computed < 2h
+    # some can take fairly long even after alignment filtering.
+    # Thus, this limit is much higher than needed for most, just to avoit
+    # any terminations due to the time limit
+    time: 4-00:00:00
+
+# The pairwise distance on the 900+ trees really take some resources
+rule C_space:
+    cpus: 32
+    mem: 20GB
+    time: 05:00:00

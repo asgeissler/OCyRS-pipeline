@@ -19,6 +19,7 @@ if [ ! -d slurmlogs ]; then
 fi
 
 snakemake                                                            \
+    --rerun-triggers mtime                                           \
     --use-singularity                                                \
     --use-conda                                                      \
     --jobs 999 `# limit on jobs in parallel`                         \

@@ -142,7 +142,7 @@ print(paste(
 
 # Compute pairwise sequence identities in the alignments
 
-xs <- Sys.glob('data/B_OGs-aln/*.faa.gz')
+xs <- Sys.glob('data/B_OGs-aln-filtered/*.faa.gz')
 
 worker <- function(path) {
   # Load

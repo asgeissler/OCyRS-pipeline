@@ -1,7 +1,7 @@
 # Estimate phylogenetic tree per alignments
 rule C_phylo:
     input:
-        'data/B_OGs-aln/{term}.faa.gz'
+        'data/B_OGs-aln-filtered/{term}.faa.gz'
     output:
         report    = 'data/C_phylo/{term}/report.txt',
         ml        = 'data/C_phylo/{term}/maximumlikelihood.tree',
@@ -13,7 +13,7 @@ rule C_phylo:
         'iqtree\:2.2.0.3--hb97b32f_0'
     resources:
         mem_mb = 20000
-    threads: 16
+    threads: 32
     shell:
         """
         tmp=$(mktemp -d)
@@ -46,17 +46,51 @@ rule C_shrink:
     log: 'snakelogs/C_shrink/{term}.txt'
     container: 'treeshrinkenv/treeshrinkenv.sif'
     conda: 'treeshrinkenv'
-    script:
+    shell:
         """
-        o=$(basename {output[1]})
-        run_treeshrink.py  -t {input} - O $o
+        run_treeshrink.py                              \
+            --tree {input}                             \
+            `# Highly recommended for large trees`     \
+            --centroid                                 \
+            `# After manual inspection, more sensitive`\
+            `# filtering than default 0.05 is needed`  \
+            --quantiles 0.10                           \
+            --outdir 'data/C_shrink/{wildcards.term}/' \
+            > {log}
         """
 
-# trigger tree per alignment, using helper function from B_*
-rule C_aggregate:
+# Compute Pairwise Topology distances and check out MDS plot
+# incl. comparison with reference trees.
+# Challenge: Passing tree files as parameters will result in a too large file
+# for sbatch to handle.
+# => Implicit dependency via flag files
+
+rule C_raw_flag:
     input:
-        lambda wild: B_aggregate_OG(wild, 'data/C_phylo/{term}/report.txt'),
-        lambda wild: B_aggregate_OG(wild, 'data/C_shrink/{term}/output.txt')
+        lambda wild: B_aggregate_OG(wild, 'data/C_phylo/{term}/bootstrap-consensus.tree')
     output:
-        touch('data/C_aggregate.flag')
+        touch('data/C_phylo/flag.done')
+
+
+rule C_shrink_flag:
+    input:
+        lambda wild: B_aggregate_OG(wild, 'data/C_shrink/{term}/output.txt'),
+    output:
+        touch('data/C_shrink/flag.done')
+
+
+rule C_space:
+    input:
+        'data/C_phylo/flag.done',
+        'data/C_shrink/flag.done'
+    output:
+        raw = 'data/C_space/pairwise-distances-raw.tsv',
+        shrunk = 'data/C_space/pairwise-distances-shrunk.tsv',
+        mds = 'data/C_space/mds-data.tsv',
+        mdsfig = 'data/C_space/mds.jpeg'
+    container: 'renv/renv.sif'
+    threads: 32
+    conda: 'renv'
+    script:
+        '../scripts/C_space.R'
 

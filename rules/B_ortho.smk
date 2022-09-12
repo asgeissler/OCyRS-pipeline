@@ -46,6 +46,20 @@ rule B_aln:
         mv $tmp.out.gz {output}
         """
 
+
+# Filter out sequences with too many AAs in gappy columns
+rule B_filter:
+    input:
+        'data/B_OGs-aln/{term}.faa.gz'
+    output:
+        res = 'data/B_OGs-aln-filtered/{term}.faa.gz',
+        fig = 'data/B_OGs-aln-filtered/{term}.jpeg'
+    log: 'snakelogs/B_filter/{term}.txt'
+    container: 'renv/renv.sif'
+    conda: 'renv'
+    script:
+        '../scripts/B_filter.R'
+
 # make sure alignment runs after the B_cand_seqs checkpoint
 def B_aggregate_OG(wildcards, x):
     """
@@ -63,11 +77,9 @@ def B_aggregate_OG(wildcards, x):
 
 rule B_aln_done:
     input:
-        lambda wild: B_aggregate_OG(wild, 'data/B_OGs-aln/{term}.faa.gz')
+        lambda wild: B_aggregate_OG(wild, 'data/B_OGs-aln-filtered/{term}.faa.gz')
     output:
-        # make protected to prevent triggering subsequent rules to run
-        # over and over
-        protected(touch('data/B_OGs-aln/done.flag'))
+        touch('data/B_OGs-aln-filtered/done.flag')
 
 
 # Assess the pairwise sequence ids in the alignments
@@ -75,7 +87,7 @@ rule B_seqids:
     input:
         og = 'data/B_OGs.tsv',
         kegg = 'data/A_representatives/kegg.tsv.gz',
-        flag = 'data/B_OGs-aln/done.flag'
+        flag = 'data/B_OGs-aln-filtered/done.flag'
     output:
         overlap = 'data/B_seqids/path-og.jpeg',
         assoc = 'data/B_seqids/path-og.tsv',
