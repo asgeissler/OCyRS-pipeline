@@ -2,13 +2,14 @@ library(tidyverse)
 library(furrr)
 library(ape)
 
-# path.raw.trees <- 'data/C_phylo/*/bootstrap-consensus.tree'
-# path.shrunk.trees <- 'data/C_shrink/*/output.tree'
-# path.ref.trees <- 'reference-trees/*.tree'
+path.raw.trees <- 'data/C_phylo/*/bootstrap-consensus.tree'
+path.shrunk.trees <- 'data/C_shrink/*/output.tree'
+path.ref.trees <- 'reference-trees/*.tree'
 
-path.raw.trees <- unlist(snakemake@input[['raw']])
-path.shrunk.trees <- unlist(snakemake@input[['shrunk']])
-path.ref.trees <- unlist(snakemake@input[['refs']])
+# Explicit links will result in too large file for sbatch
+#path.raw.trees <- unlist(snakemake@input[['raw']])
+#path.shrunk.trees <- unlist(snakemake@input[['shrunk']])
+#path.ref.trees <- unlist(snakemake@input[['refs']])
 
 out.raw <- unlist(snakemake@output[['raw']])
 out.shrunk <- unlist(snakemake@output[['shrunk']])
@@ -26,17 +27,17 @@ cpus <- as.integer(unlist(snakemake@threads))
 plan(multisession, workers = cpus) 
 
 ################################################################################
-# (glob lookup all tree files during development only)
+# lookup all tree files
 raw <- path.raw.trees %>%
-  # Sys.glob() %>%
+  Sys.glob() %>%
   set_names(. %>% dirname %>% basename)
 
 shrunk <- path.shrunk.trees %>%
-  # Sys.glob() %>%
+  Sys.glob() %>%
   set_names(. %>% dirname %>% basename)
 
 ref <- path.ref.trees %>%
-  # Sys.glob() %>%
+  Sys.glob() %>%
   set_names(. %>% basename %>% fs::path_ext_remove())
 
 ################################################################################

@@ -61,11 +61,28 @@ rule C_shrink:
 
 # Compute Pairwise Topology distances and check out MDS plot
 # incl. comparison with reference trees.
+# Challenge: Passing tree files as parameters will result in a too large file
+# for sbatch to handle.
+# => Implicit dependency via flag files
+
+rule C_raw_flag:
+    input:
+        lambda wild: B_aggregate_OG(wild, 'data/C_phylo/{term}/bootstrap-consensus.tree')
+    output:
+        touch('data/C_phylo/flag.done')
+
+
+rule C_shrink_flag:
+    input:
+        lambda wild: B_aggregate_OG(wild, 'data/C_shrink/{term}/output.txt'),
+    output:
+        touch('data/C_shrink/flag.done')
+
+
 rule C_space:
     input:
-        raw = lambda wild: B_aggregate_OG(wild, 'data/C_phylo/{term}/bootstrap-consensus.tree'),
-        shrunk = lambda wild: B_aggregate_OG(wild, 'data/C_shrink/{term}/output.txt')
-        refs = glob('reference-trees/*.tree')
+        'data/C_phylo/flag.done',
+        'data/C_shrink/flag.done'
     output:
         raw = 'data/C_space/pairwise-distances-raw.tsv',
         shrunk = 'data/C_space/pairwise-distances-shrunk.tsv',

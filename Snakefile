@@ -22,6 +22,7 @@ def sample_wise(x, df):
 include: 'rules/A_genomes.smk'
 include: 'rules/B_ortho.smk'
 include: 'rules/C_phylo.smk'
+include: 'rules/D_search-seqs.smk'
 
 # Target rules
 rule all:
@@ -35,4 +36,5 @@ rule all:
         'data/B_OGs.tsv',
         'data/B_OGs-aln-filtered/done.flag',
         'data/B_seqids/seqid.tsv',
-        'data/C_space/mds.jpeg'
+        'data/C_space/mds.jpeg',
+        'data/D_intergenic.jpeg'
