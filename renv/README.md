@@ -7,6 +7,6 @@ image, as described in `Singularity`.
 
         sudo singularity build renv.sif Singularity
 
-A pre-build version of this environment is tracked in the git 
-[large file support](https://git-lfs.github.com/) system.
+A pre-build version of this environment is attached to the github 
+packages [repository](https://github.com/asgeissler/OCyRS-pipeline).
 

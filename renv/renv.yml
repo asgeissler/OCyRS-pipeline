@@ -5,6 +5,7 @@ channels:
     - defaults
 dependencies:
     - bioconductor-biostrings
+    - bioconductor-bsgenome
     - bioconductor-genomeinfodbdata
     - bioconductor-rtracklayer
     - bioconductor-plyranges
