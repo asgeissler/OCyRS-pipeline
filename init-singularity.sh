@@ -8,8 +8,8 @@ singularity pull https://depot.galaxyproject.org/singularity/iqtree:2.2.0.3--hb9
 
 
 # Download custom images from ghcr.io 
-singularity pull oras://ghcr.io/asgeissler/renv:0.1
+singularity pull oras://ghcr.io/asgeissler/renv:0.2
 singularity pull oras://ghcr.io/asgeissler/treeshrinkenv:0.1
 # Restore paths
-mv renv_0.1.sif renv/renv.sif
+mv renv_0.2.sif renv/renv.sif
 mv treeshrinkenv_0.1.sif treeshrinkenv/treeshrinkenv.sif
