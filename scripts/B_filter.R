@@ -51,7 +51,7 @@ tibble(x = out.ratio) %>%
   # geom_histogram() +
   stat_ecdf() +
   xlab('Proportion of AAs in masked columns') +
-  geom_vline(xintercept = .1, color = 'red') +
+  geom_vline(xintercept = .2, color = 'red') +
   scale_x_continuous(breaks = seq(0, 1, .1)) +
   theme_bw(18) +
   ggtitle(
@@ -60,7 +60,7 @@ tibble(x = out.ratio) %>%
       paste(
         'Alignment had %s sequences and %s columns',
         '%s columns consist of >80%% gaps',
-        '%s sequences have >90%% of AAs in gapped regions',
+        '%s sequences have >80%% of AAs in gapped regions',
         sep = '\n'
       ),
       nrow(aln), ncol(aln),
