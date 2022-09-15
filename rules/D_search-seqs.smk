@@ -35,7 +35,6 @@ rule D_align:
         'data/D_search-seqs-aln/{region}.fna.gz'
     container:
         'muscle\:3.8.1551--h7d875b9_6'
-    log: 'snakelogs/D_align/{region}.txt'
     shell:
         """
         tmp=$(mktemp)

@@ -28,3 +28,12 @@ C_space:
     cpus: 32
     mem: 40GB
     time: 08:00:00
+
+
+F_cmfinder:
+    # from CMfinder help page: 
+    #  (currently only the internal cmsearch commands in cmfinder04)
+    #  => Most of the tool is single-core anyway
+    cpus: 1 
+    mem: 12GB
+    time: 1-00:00:00

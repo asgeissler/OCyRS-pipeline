@@ -23,6 +23,7 @@ include: 'rules/A_genomes.smk'
 include: 'rules/B_ortho.smk'
 include: 'rules/C_phylo.smk'
 include: 'rules/D_search-seqs.smk'
+include: 'rules/F_cmfinder.smk'
 
 # Target rules
 rule all:
@@ -34,6 +35,7 @@ rule all:
         'data/B_OGs.tsv',
         'data/B_OGs-aln-filtered/done.flag',
         'data/B_seqids/seqid.tsv',
-        'data/C_space/mds.jpeg',
+        'data/C_space/pcoa.jpeg',
         'data/D_intergenic.jpeg',
-        'data/D_search-seqs-aln/done.flag'
+        'data/D_search-seqs-aln/done.flag',
+        'data/F_cmfinder/motifs.txt'
