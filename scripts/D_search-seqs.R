@@ -17,9 +17,7 @@ path.genomes <- 'data/A_representatives/*/genome.fna.gz'
 path.trees <- 'data/C_shrink/*/output.tree'
 
 out.intergenic <- unlist(snakemake@output[['intergenic']])
-out.seqs <- unlist(snakemake@output[['seqs']]) %>%
-  dirname %>%
-  unique
+out.seqs <- unlist(snakemake@output[['seqs']])
 
 ############################################################################################
 # load input data
@@ -201,7 +199,6 @@ names(to.export.seq) <- as.character(final.i$candidate.i)
 # Save search sequences for later use
 # Extract sequences from genomes
 
-out.seqs <- 'bar'
 if(!dir.exists(out.seqs)) {
   dir.create(out.seqs)
 }
@@ -218,7 +215,10 @@ crossing(ko = names(tree.genes), x = c('upstream', 'downstream')) %>%
       as.character() -> mask
     res <- to.export.seq[mask]
     names(res) <- foo$gene
-    writeXStringSet(res, path, compress = TRUE)
+    # Save but don't create empty files
+    if (length(res) > 0) {
+      writeXStringSet(res, path, compress = TRUE)
+    }
   })
   
 #############################################################################################
