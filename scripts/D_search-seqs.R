@@ -215,8 +215,8 @@ crossing(ko = names(tree.genes), x = c('upstream', 'downstream')) %>%
       as.character() -> mask
     res <- to.export.seq[mask]
     names(res) <- foo$gene
-    # Save but don't create empty files
-    if (length(res) > 0) {
+    # Save but don't create empty files and have at least 5 sequences to work
+    if (length(res) >= 5) {
       writeXStringSet(res, path, compress = TRUE)
     }
   })
