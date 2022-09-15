@@ -61,6 +61,7 @@ rule B_filter:
         '../scripts/B_filter.R'
 
 # make sure alignment runs after the B_cand_seqs checkpoint
+# parameter wildcards is not used, mandatory parameter for snakemake
 def B_aggregate_OG(wildcards, x):
     """
     List for all OGs the fasta sequence file with

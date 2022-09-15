@@ -24,7 +24,7 @@ C_phylo:
     time: 4-00:00:00
 
 # The pairwise distance on the 900+ trees really take some resources
-rule C_space:
+C_space:
     cpus: 32
-    mem: 20GB
-    time: 05:00:00
+    mem: 40GB
+    time: 08:00:00

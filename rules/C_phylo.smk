@@ -88,6 +88,7 @@ rule C_space:
         shrunk = 'data/C_space/pairwise-distances-shrunk.tsv',
         mds = 'data/C_space/mds-data.tsv',
         mdsfig = 'data/C_space/mds.jpeg'
+    log: 'snakelogs/C_space.txt'
     container: 'renv/renv.sif'
     threads: 32
     conda: 'renv'
