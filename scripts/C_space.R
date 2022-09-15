@@ -2,35 +2,41 @@ library(tidyverse)
 library(furrr)
 library(ape)
 
-path.raw.trees <- 'data/C_phylo/*/bootstrap-consensus.tree'
+# path.raw.trees <- 'data/C_phylo/*/bootstrap-consensus.tree'
 path.shrunk.trees <- 'data/C_shrink/*/output.tree'
 path.ref.trees <- 'reference-trees/*.tree'
+path.kegg <- 'data/A_representatives/kegg.tsv.gz'
 
 # Explicit links will result in too large file for sbatch
 #path.raw.trees <- unlist(snakemake@input[['raw']])
 #path.shrunk.trees <- unlist(snakemake@input[['shrunk']])
 #path.ref.trees <- unlist(snakemake@input[['refs']])
 
-out.raw <- unlist(snakemake@output[['raw']])
+# out.raw <- unlist(snakemake@output[['raw']])
 out.shrunk <- unlist(snakemake@output[['shrunk']])
-out.mds <- unlist(snakemake@output[['mds']])
-out.mds.fig <- unlist(snakemake@output[['mdsfig']])
+out.pcoa <- unlist(snakemake@output[['pcoa']])
+out.pcoa.fig <- unlist(snakemake@output[['pcoafig']])
 
+# out.raw <- 'data/C_space/pairwise-distances-raw.tsv'
+# out.shrunk <- 'data/C_space/pairwise-distances-shrunk.tsv'
+# out.pcoa <- 'data/C_space/mds-data.tsv'
+# out.pcoa.fig <- 'data/C_space/mds.jpeg'
 
 # make sure script output is placed in log file
-log <- file(unlist(snakemake@log), open="wt")
-sink(log)
+# log <- file(unlist(snakemake@log), open="wt")
+# sink(log)
 
 # the numer of cores to use
 # cpus <- availableCores()
-cpus <- as.integer(unlist(snakemake@threads))
+# cpus <- as.integer(unlist(snakemake@threads))
+cpus <- 16
 plan(multisession, workers = cpus) 
 
 ################################################################################
 # lookup all tree files
-raw <- path.raw.trees %>%
-  Sys.glob() %>%
-  set_names(. %>% dirname %>% basename)
+# raw <- path.raw.trees %>%
+#   Sys.glob() %>%
+#   set_names(. %>% dirname %>% basename)
 
 shrunk <- path.shrunk.trees %>%
   Sys.glob() %>%
@@ -41,10 +47,12 @@ ref <- path.ref.trees %>%
   set_names(. %>% basename %>% fs::path_ext_remove())
 
 ################################################################################
-# load trees
+# load data
   
-raw.trees    <- future_map(c(raw, ref), read.tree)
+# raw.trees    <- future_map(c(raw, ref), read.tree)
 shrunk.trees <- future_map(c(shrunk, ref), read.tree)
+
+kegg <- read_tsv(path.kegg)
 
 ################################################################################
 
@@ -82,7 +90,7 @@ assertthat::are_equal(
 )
 
 # despec input trees
-raw.despec.trees    <- future_map(raw.trees, despec)
+# raw.despec.trees    <- future_map(raw.trees, despec)
 shrunk.despec.trees <- future_map(shrunk.trees, despec)
 
 ################################################################################
@@ -114,7 +122,7 @@ tasks <- crossing(a = names(raw.despec.trees),
 # suppress erroneous warnings of
 # "unexpectedly generated random numbers without specifying argument 'seed'."
 # seems to be a bug in furrr
-f.raw <- safely(partial(dedist, trees = raw.despec.trees))
+# f.raw <- safely(partial(dedist, trees = raw.despec.trees))
 f.shrunk <- safely(partial(dedist, trees = shrunk.despec.trees))
 
 suppressWarnings({
@@ -144,19 +152,21 @@ mk.tbl <- function(i) {
   dat2 <- bind_cols(tasks[ok.mask, ], dat)
 }
 
-res.raw.tbl <- mk.tbl(res.raw)
+# res.raw.tbl <- mk.tbl(res.raw)
 res.shrunk.tbl <- mk.tbl(res.shrunk)
 
-write_tsv(res.raw.tbl, out.raw)
+# write_tsv(res.raw.tbl, out.raw)
 write_tsv(res.shrunk.tbl, out.shrunk)
 
+# res.raw.tbl <- read_tsv(out.raw)
+# res.shrunk.tbl <- read_tsv(out.shrunk)
 ################################################################################
 # Inspect to what extend the observed distances depend on the number of shared
 # species
 
 cat('Correlation test of no. shared species to topology distance')
-cat('Raw trees')
-with(res.raw.tbl, cor.test(shared, dist)) %>% print()
+# cat('Raw trees')
+# with(res.raw.tbl, cor.test(shared, dist)) %>% print()
 cat('Shrunk trees')
 with(res.shrunk.tbl, cor.test(shared, dist)) %>% print()
 
@@ -195,47 +205,56 @@ mk.mat <- function(i) {
 
 # raw.mat <- mk.mat(res.raw.tbl)
 shrunk.mat <- mk.mat(res.shrunk.tbl)
-# scale by #shared
-res.shrunk.tbl %>%
-  mutate(dist = dist * shared) %>%
-  mk.mat() -> shrunk2.mat
 
 ################################################################################
 # Explore the space of trees according to a PCoA of the distance matrix
 
-list(
-  'Full trees' = raw.mat,
-  'Outlier pruned' = shrunk.mat,
-  'Scaled by no. shared species' = shrunk2.mat
-) %>%
-  map(as.dist) %>%
-  map(cmdscale) %>%
-  map(magrittr::set_colnames, c('MDS1', 'MDS2'))  %>%
-  map(as_tibble, rownames = 'tree') %>%
-  map2(names(.), ~ mutate(.x, mode = .y)) %>%
-  bind_rows() -> mds
+dat <- ape::pcoa(shrunk.mat)
 
-mds %>%
- mutate(ref = !str_detect(tree, '^K[0-9]*$')) -> dat
-dat %>% filter(ref) -> mds.ref
-dat %>%
-  ggplot(aes(MDS1, MDS2, color = ref)) +
+# The explained variance
+evar <- sprintf('PC%g (%.f%% variance)',
+                seq_along(dat$values$Relative_eig),
+                dat$values$Relative_eig * 100)[1:2]
+
+# The tiddy table of coordinates
+tibble(
+  tree = rownames(dat$vectors),
+  PC1 = unlist(dat$vectors[, 'Axis.1']),
+  PC2 = unlist(dat$vectors[, 'Axis.2']),
+  ref = !str_detect(tree, '^K[0-9]*$')
+) %>%
+  left_join(kegg %>% select(term, title) %>% unique, c('tree' = 'term')) -> dat2
+
+# split plotting of reference points to guarantee that points are on the top
+dat2.ref <- filter(dat2, ref)
+
+dat2 %>%
+  mutate(
+    show = ref | PC1 < -10 | PC2 < -10,
+    title = ifelse(
+      is.na(title),
+      tree,
+      sprintf('%s (%s)', str_remove(title, ' \\[EC.*$'), tree)
+    ),
+    lab = ifelse(show, title, NA_character_)
+  ) %>%
+  ggplot(aes(PC1, PC2, color = ref)) +
   ggsci::scale_color_jama(name = 'Reference tree') +
   geom_point(size = 3, alpha = 0.5) +
-  geom_point(size = 3, alpha = 0.5, data = mds.ref) +
+  geom_point(size = 3, alpha = 0.5, data = dat2.ref) +
   ggrepel::geom_label_repel(
-    aes(label = tree), data = mds.ref,
+    aes(label = lab),
     size = 7,
-    # nudge_x = 10, nudge_y = -5,
-    # force = 500,
-    force = 100,
+    nudge_x = -10, nudge_y = 5,
+    force = 500,
+    # force = 100,
     alpha = 0.7, show.legend = FALSE) +
-  facet_wrap(~ mode, scales = 'free') +
-  xlim(-5, 10) +
-  ylim(-6, 6) +
+  xlab(evar[[1]]) +
+  ylab(evar[[2]]) +
   theme_bw(18)  +
   theme(legend.position = 'bottom')
 
-write_tsv(dat, out.mds)
-ggsave(out.mds.fig, dpi = 400, width = 16, height = 9)
+write_tsv(dat2, out.pcoa)
+ggsave(out.pcoa.fig, dpi = 400, width = 16, height = 9)
+# ggsave('foo.jpeg', dpi = 400, width = 16, height = 9)
 ################################################################################

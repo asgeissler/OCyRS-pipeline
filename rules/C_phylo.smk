@@ -84,10 +84,10 @@ rule C_space:
         'data/C_phylo/flag.done',
         'data/C_shrink/flag.done'
     output:
-        raw = 'data/C_space/pairwise-distances-raw.tsv',
+        #raw = 'data/C_space/pairwise-distances-raw.tsv',
         shrunk = 'data/C_space/pairwise-distances-shrunk.tsv',
-        mds = 'data/C_space/mds-data.tsv',
-        mdsfig = 'data/C_space/mds.jpeg'
+        pcoa = 'data/C_space/pcoa-data.tsv',
+        pcoafig = 'data/C_space/pcoa.jpeg'
     log: 'snakelogs/C_space.txt'
     container: 'renv/renv.sif'
     threads: 32
