@@ -23,14 +23,15 @@ out.pcoa.fig <- unlist(snakemake@output[['pcoafig']])
 # out.pcoa.fig <- 'data/C_space/mds.jpeg'
 
 # make sure script output is placed in log file
-# log <- file(unlist(snakemake@log), open="wt")
-# sink(log)
+log <- file(unlist(snakemake@log), open="wt")
+sink(log)
 
 # the numer of cores to use
 # cpus <- availableCores()
-# cpus <- as.integer(unlist(snakemake@threads))
-cpus <- 16
-plan(multisession, workers = cpus) 
+cpus <- as.integer(unlist(snakemake@threads))
+plan(multicore, workers = cpus) 
+# cpus <- 16
+# plan(multisession, workers = cpus) 
 
 ################################################################################
 # lookup all tree files
@@ -113,9 +114,9 @@ dedist <- function(trees, a, b) {
 }
 
 # All pairwise comparisons
-assertthat::are_equal(names(raw.despec.trees),
-                      names(shrunk.despec.trees))
-tasks <- crossing(a = names(raw.despec.trees),
+# assertthat::are_equal(names(raw.despec.trees),
+#                       names(shrunk.despec.trees))
+tasks <- crossing(a = names(shrunk.despec.trees),
                   b = names(shrunk.despec.trees)) %>%
   filter(a < b)
 
@@ -126,7 +127,7 @@ tasks <- crossing(a = names(raw.despec.trees),
 f.shrunk <- safely(partial(dedist, trees = shrunk.despec.trees))
 
 suppressWarnings({
-  res.raw <- future_pmap(tasks, f.raw)
+  # res.raw <- future_pmap(tasks, f.raw)
   res.shrunk <- future_pmap(tasks, f.shrunk)
 })
 
@@ -256,5 +257,4 @@ dat2 %>%
 
 write_tsv(dat2, out.pcoa)
 ggsave(out.pcoa.fig, dpi = 400, width = 16, height = 9)
-# ggsave('foo.jpeg', dpi = 400, width = 16, height = 9)
 ################################################################################
