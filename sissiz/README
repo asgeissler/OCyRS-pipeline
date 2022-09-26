@@ -1,0 +1,8 @@
+The SISSIz authors kindly provided a preliminary version 3.0 ahead of
+publication in the `3_0_SISSIz.tar.gz` (not tracked in git repository).
+
+TODO link explicitly in definition file to published path
+
+The image was build with:
+
+sudo singularity build sissiz-pre.sif Singularity
