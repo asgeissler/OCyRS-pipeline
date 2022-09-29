@@ -124,4 +124,8 @@ environment (*e.g.* partition name). To adapt a similar helper script for
 alternative cluster solutions, please refer to the
 [snakemake handbook](https://snakemake.readthedocs.io/en/stable/executing/cluster.html).
 
+Finally, to run the pipeline, first call the *download* target before
+initiating *all* subsequent steps.
 
+        $ bash run_local.sh download
+        $ bash run_local.sh all

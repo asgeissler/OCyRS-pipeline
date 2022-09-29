@@ -26,11 +26,13 @@ include: 'rules/D_search-seqs.smk'
 include: 'rules/F_cmfinder.smk'
 
 # Target rules
-rule all:
+rule download:
     input:
         'data/A_progenomes/genomes.fna.gz',
         'data/A_progenomes/representatives.txt',
-        'data/A_representatives/',
+        'data/A_representatives/'
+rule all:
+    input:
         'data/A_checkm/checkm_summary.tsv',
         'data/B_OGs.tsv',
         'data/B_OGs-aln-filtered/done.flag',
