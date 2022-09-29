@@ -125,7 +125,9 @@ alternative cluster solutions, please refer to the
 [snakemake handbook](https://snakemake.readthedocs.io/en/stable/executing/cluster.html).
 
 Finally, to run the pipeline, first call the *download* target before
-initiating *all* subsequent steps.
+initiating *all* subsequent steps. Together with the container download,
+the commands to run the pipeline are:
 
+        $ sh init-singularity.sh
         $ bash run_local.sh download
         $ bash run_local.sh all
