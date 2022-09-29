@@ -9,7 +9,7 @@ rule F_cmfinder:
     output:
         directory('data/F_cmfinder/{path}/{region}')
     container:
-        'cmfinder\:0.4.1.9--pl5.22.0_1'
+        'cmfinder/cmfinder-0.4.1.18.sif'
     shell:
         """
         PROJ=$(pwd -L)
@@ -21,7 +21,7 @@ rule F_cmfinder:
 
         # Run CMfinder
         cmfinder04.pl                                                                                                 \
-            -skipClustalw -minCandScoreInFinal 10 -combine -fragmentary                                               \
+            -skipClustalW -minCandScoreInFinal 10 -combine -fragmentary                                               \
             -commaSepEmFlags x--filter-non-frag,--max-degen-per-hit,2,--max-degen-flanking-nucs,7,--degen-keep,--amaa \
             {wildcards.region}.fna
 
