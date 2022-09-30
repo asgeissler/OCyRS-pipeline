@@ -76,14 +76,30 @@ rule E_collect:
 
 # Assess overall GC content, seq id, and dinucleotide frequencies
 # before/after shuffeling
-rule E_stat:
+checkpoint E_stat:
     input:
         'data/E_search-shuffled/done.flag'
     output:
         'data/E_search-filtered-stat.tsv'
+        #! side-effect: Convert SISSIz txt to
+        #'data/E_search-shuffled/{region}.fna.gz'
     log: 'snakelogs/E_stat.txt'
     container: 'renv/renv.sif'
     conda: 'renv'
     threads: 32
     script:
         '../scripts/E_stat.R'
+
+# custom aggregation of only those SISSIz outputs that were converted to fna.gz
+def E_bg_models(wildcards, x):
+    chk = checkpoints.E_stat.get().output
+    # Check which regions where exported
+    # (Could be few than in D_search-seqs due to filtering)
+    xs = glob('data/E_search-shuffled/*.fna.gz')
+    xs = [ os.path.basename(i) for i in xs ]
+    xs = [ i.split('.')[0] for i in xs ]
+    # expand desired string
+    df = pd.DataFrame({'region': xs})
+    return sample_wise(x, df)
+
+
