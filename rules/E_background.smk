@@ -40,9 +40,11 @@ rule E_clustal:
         # Needed in shell to work with conda
         python3 << EOF
 from Bio import SeqIO
-records = SeqIO.parse({input}, 'fasta')
-count = SeqIO.write(records, {output}, 'clustal')
-print('Converted %i records' % count)
+import gzip
+with gzip.open('{input}', 'rt') as h:
+    records = SeqIO.parse(h, 'fasta')
+    count = SeqIO.write(records, '{output}', 'clustal')
+    print('Converted %i records' % count)
 EOF
         """
 
