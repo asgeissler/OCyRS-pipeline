@@ -61,7 +61,10 @@ rule E_sissiz:
         SISSIz --clustal -n 1        \
         --tstv --simulate            \
         --read_seeds=389650868,16063 \
-        {input} > {output}
+        {input} > {output}     || true
+        # the true and touch makes an empty file if SISSIz fails
+        # (eg too large input)
+        touch {output}
         """
 
 rule E_collect:
