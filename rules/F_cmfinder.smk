@@ -1,7 +1,7 @@
 # Detect potential motifs in the regions
 # 'data/D_search-seqs/{region}.fna.gz'
 # and the random background under
-# 'data/E_random/{region}.fna.gz'
+# 'data/E_search-shuffled/{region}.fna.gz'
 
 rule F_cmfinder:
     input:
@@ -48,14 +48,25 @@ rule F_all:
         touch('data/F_cmfinder/done.flag')
 
 
+rule F_all_bg:
+    input:
+        lambda wild: E_bg_models(wild, 'data/F_cmfinder/E_search-shuffled/{region}')
+    output:
+        touch('data/F_cmfinder/bg-done.flag')
+
+
 checkpoint F_collect:
     input:
-        'data/F_cmfinder/done.flag'
+        'data/F_cmfinder/done.flag',
+        'data/F_cmfinder/bg-done.flag'
     output:
-        'data/F_cmfinder/motifs.txt'
+        'data/F_cmfinder/motifs.txt',
+        'data/F_cmfinder/bg-motifs.txt'
     shell:
         """
-        find data/F_cmfinder/cmfinder -name "*motif*" -exec basename {{}} \; \
-            > {output}
+        find data/F_cmfinder/D_search-seqs -name "*motif*" -exec basename {{}} \; \
+            > {output[0]}
+        find data/F_cmfinder/E_search-seqs -name "*motif*" -exec basename {{}} \; \
+            > {output[1]}
         """
 

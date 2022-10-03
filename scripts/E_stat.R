@@ -199,7 +199,7 @@ future_map2(
 stat.res %>%
   left_join(di.res, 'region') -> res
 
-write_tsv(seq, out)
+write_tsv(res, out)
 
 # Report final correlation of gc and seqid
 print('Correlation of overall GC content before/after filtering')
