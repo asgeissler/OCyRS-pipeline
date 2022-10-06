@@ -5,4 +5,7 @@ project_root: '/home/projects/rth/co2capture/subprojects/OCyRS/OCyRS-pipeline'
 # Specify which phylum to search in
 phylum: 'Cyanobacteria'
 
+# Specify Rfam version
+rfamv: '14.8'
+
 

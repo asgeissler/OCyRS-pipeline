@@ -25,23 +25,37 @@ include: 'rules/C_phylo.smk'
 include: 'rules/D_search-seqs.smk'
 include: 'rules/E_background.smk'
 include: 'rules/F_cmfinder.smk'
+include: 'rules/G_rfam.smk'
 
 # Target rules
+# Initial proGenomes download is separate to keep remaining rules streamlined
 rule download:
     input:
         'data/A_progenomes/genomes.fna.gz',
         'data/A_progenomes/representatives.txt',
         'data/A_representatives/'
+
 rule all:
     input:
+        # initiate extra genome quality check
         'data/A_checkm/checkm_summary.tsv',
+        # extract OG, their sequences, and align
         'data/B_OGs.tsv',
         'data/B_OGs-aln-filtered/done.flag',
         'data/B_seqids/seqid.tsv',
+        # build trees and compare their topology distances
         'data/C_space/pcoa.jpeg',
+        # export adjacent sequences
         'data/D_intergenic.jpeg',
         'data/D_search-seqs-aln/done.flag',
+        # make random background
         'data/E_search-shuffled/done.flag',
         'data/E_search-filtered-stat.tsv',
+        # CMfinder runs
         'data/F_cmfinder/motifs.txt',
-        'data/F_cmfinder/bg-motifs.txt'
+        'data/F_cmfinder/bg-motifs.txt',
+        # Also make a bacterial Rfam screen in all genomes
+        'data/G_rfam-bacteria/download.done',
+        'data/G_rfam-bacteria/download.done',
+        'data/G_rfam-cmsearch/runs.done',
+        'data/G_rfam-cmsearch.tsv.gz'
