@@ -46,4 +46,4 @@ F_cmfinder:
     #  => Most of the tool is single-core anyway
     cpus: 1 
     mem: 40GB
-    time: 4-00:00:00
+    time: 5-00:00:00

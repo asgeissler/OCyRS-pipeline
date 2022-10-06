@@ -23,7 +23,7 @@ rule F_cmfinder:
         cmfinder04.pl                                                                                                 \
             -skipClustalW -minCandScoreInFinal 10 -combine -fragmentary                                               \
             -commaSepEmFlags x--filter-non-frag,--max-degen-per-hit,2,--max-degen-flanking-nucs,7,--degen-keep,--amaa \
-            {wildcards.region}.fna
+            {wildcards.region}.fna     || true
 
         # Save to output
         cd $PROJ

@@ -43,4 +43,5 @@ rule all:
         'data/D_search-seqs-aln/done.flag',
         'data/E_search-shuffled/done.flag',
         'data/E_search-filtered-stat.tsv',
-        'data/F_cmfinder/motifs.txt'
+        'data/F_cmfinder/motifs.txt',
+        'data/F_cmfinder/bg-motifs.txt'
