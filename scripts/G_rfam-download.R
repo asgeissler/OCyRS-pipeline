@@ -1,7 +1,7 @@
 library(tidyverse)
 
 # The output dir for the pipeline
-out <- unlist(snakemake@output)
+out <- unlist(snakemake@output[[1]])
 rfv <- unlist(snakemake@params[['rfamv']])
 
 # Query for bacterial Rfams

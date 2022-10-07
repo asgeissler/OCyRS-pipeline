@@ -1,4 +1,10 @@
 library(tidyverse)
+library(furrr)
+
+
+cpus <- as.integer(unlist(snakemake@threads))
+plan(multicore, workers = cpus) 
+################################################################################
 
 # names of columns in file
 ns <- c('target name', 'accession', 'query name', 'accession2',
@@ -40,8 +46,10 @@ parse <- function(path) {
 # Parse all files
 'data/G_rfam-cmsearch/*/*.txt' %>%
   Sys.glob() %>%
-  map(parse) %>%
+  future_map(parse) %>%
   invoke(.f = bind_rows) -> tbl
+
+################################################################################
 
 # more concise names
 select(

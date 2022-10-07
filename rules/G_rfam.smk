@@ -1,8 +1,9 @@
 
 # Download all bacterial Rfam families
-checkpoint G_download:
+rule G_download:
     output:
-        directory('data/G_rfam-bacteria')
+        directory('data/G_rfam-bacteria'),
+        'data/G_rfam-bacteria/download.done'
     params:
         rfamv = config['rfamv']
     container: 'renv/renv.sif'
@@ -10,9 +11,10 @@ checkpoint G_download:
     script:
         '../scripts/G_rfam-download.R'
 
-checkpoint G_download_seeds:
+rule G_download_seeds:
     output:
-        directory('data/C_rfam-bacteria-seeds')
+        directory('data/G_rfam-bacteria-seeds'),
+        'data/G_rfam-bacteria-seeds/download.done'
     params:
         # The Rfam version to be used
         rfamv = config['rfamv']
@@ -27,21 +29,22 @@ rule G_cmsearch:
         downflag = 'data/G_rfam-bacteria/download.done',
         genome = 'data/A_representatives/{tax_bio}/genome.fna.gz'
     output:
-        directory('data/G_rfam-cmsearch/{tax_bio}')
+        directory('data/G_rfam-cmsearch/{tax_bio}'),
+        'data/G_rfam-cmsearch/{tax_bio}/run.done'
     log: 'snakelogs/G_cmsearch-rfam/{tax_bio}.txt'
     container: 'infernal\:1.1.4--pl5321hec16e2b_1'
     threads: 8
     shell:
         """
-        mkdir -p {output}
+        mkdir -p {output[0]}
         for cm in data/G_rfam-bacteria/RF*.cm ; do
             echo $cm >> {log} 2>&1
-            p="{output}/$(basename $cm .cm).txt"
+            p="{output[0]}/$(basename $cm .cm).txt"
             cmsearch --nohmmonly --rfam --cut_ga \
                 --tblout $p --cpu 8              \
                 $cm {input.genome} >> {log} 2>&1
         done
-        touch {output}/run.done
+        touch {output[1]}
         """
 
 rule G_pergenome:
@@ -57,6 +60,7 @@ rule G_combine:
         protected('data/G_rfam-cmsearch.tsv.gz')
     container: 'renv/renv.sif'
     conda: 'renv'
+    threads: 8
     script:
         '../scripts/G_combine_search.R'
 

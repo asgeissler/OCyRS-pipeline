@@ -47,3 +47,13 @@ F_cmfinder:
     cpus: 1 
     mem: 40GB
     time: 5-00:00:00
+
+G_cmsearch:
+    cpus: 8
+    mem: 8GB
+    time: 0-04:00:00
+
+G_combine:
+    cpus: 8
+    mem: 16GB
+    time: 0-04:00:00

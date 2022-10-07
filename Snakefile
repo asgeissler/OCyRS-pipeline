@@ -56,6 +56,6 @@ rule all:
         'data/F_cmfinder/bg-motifs.txt',
         # Also make a bacterial Rfam screen in all genomes
         'data/G_rfam-bacteria/download.done',
-        'data/G_rfam-bacteria/download.done',
+        'data/G_rfam-bacteria-seeds/download.done',
         'data/G_rfam-cmsearch/runs.done',
         'data/G_rfam-cmsearch.tsv.gz'
