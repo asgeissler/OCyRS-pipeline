@@ -6,6 +6,7 @@ cmfinder:*
 infernal:*
 iqtree:*
 muscle:*
+rscape:*
 */*.sif
 
 # Do not store binary data

@@ -11,7 +11,7 @@ rule G_download:
     script:
         '../scripts/G_rfam-download.R'
 
-rule G_download_seeds:
+checkpoint G_download_seeds:
     output:
         directory('data/G_rfam-bacteria-seeds'),
         'data/G_rfam-bacteria-seeds/download.done'
@@ -22,6 +22,18 @@ rule G_download_seeds:
     conda: 'renv'
     script:
         '../scripts/G_rfam-download-seeds.R'
+
+# for later use to aggregate the downloaded stos
+def G_aggregate(wildcards, x):
+    # make sure that the checkpoint finished
+    chk = checkpoints.G_download_seeds.get().output
+    # Check which seeds where exported
+    xs = glob('data/G_rfam-bacteria-seeds/*.sto')
+    xs = [ os.path.basename(i) for i in xs ]
+    xs = [ i.split('.')[0] for i in xs ]
+    # expand desired string
+    df = pd.DataFrame({'family': xs})
+    return sample_wise(x, df)
 
 
 rule G_cmsearch:

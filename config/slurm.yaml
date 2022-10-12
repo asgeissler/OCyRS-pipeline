@@ -57,3 +57,22 @@ G_combine:
     cpus: 8
     mem: 16GB
     time: 0-04:00:00
+
+
+# large motifs can hit 1h time limit
+H_pscore:
+    time: 0-05:00:00
+    cpus: 1
+    mem: 8GB
+    partition: panic
+
+H_pscore2:
+    time: 0-05:00:00
+    cpus: 1
+    mem: 8GB
+    partition: panic
+
+H_rscape:
+    time: 0-05:00:00
+    cpus: 1
+    mem: 8GB

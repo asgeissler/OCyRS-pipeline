@@ -26,6 +26,7 @@ include: 'rules/D_search-seqs.smk'
 include: 'rules/E_background.smk'
 include: 'rules/F_cmfinder.smk'
 include: 'rules/G_rfam.smk'
+include: 'rules/H_scores.smk'
 
 # Target rules
 # Initial proGenomes download is separate to keep remaining rules streamlined
@@ -61,4 +62,7 @@ rule all:
         'data/G_rfam-bacteria/download.done',
         'data/G_rfam-bacteria-seeds/download.done',
         'data/G_rfam-cmsearch/runs.done',
-        'data/G_rfam-cmsearch.tsv.gz'
+        'data/G_rfam-cmsearch.tsv.gz',
+        # Score sto files
+        'data/H_scores/done.flag'
+        #'data/H_scores.tsv'

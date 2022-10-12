@@ -3,6 +3,7 @@ singularity pull https://depot.galaxyproject.org/singularity/checkm-genome:1.2.0
 singularity pull https://depot.galaxyproject.org/singularity/infernal:1.1.4--pl5321hec16e2b_1
 singularity pull https://depot.galaxyproject.org/singularity/muscle:3.8.1551--h7d875b9_6
 singularity pull https://depot.galaxyproject.org/singularity/iqtree:2.2.0.3--hb97b32f_0
+singularity pull https://depot.galaxyproject.org/singularity/rscape:1.4.0--h87f3376_2
 
 
 # Download custom images from ghcr.io 

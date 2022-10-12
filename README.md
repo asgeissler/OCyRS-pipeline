@@ -93,6 +93,7 @@ software repository:
 1. Infernal $1.1.4$
 1. IQ-TREE $2.2.0.3$
 1. MUSCLE $3.8.1551$
+1. R-Scape $1.4.0$
 
 A container with various R packages `renv/renv.sif`
 is pre-build as part of this pipeline.
