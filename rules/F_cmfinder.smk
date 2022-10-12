@@ -55,7 +55,7 @@ rule F_all_bg:
         touch('data/F_cmfinder/bg-done.flag')
 
 
-checkpoint F_collect:
+rule F_collect:
     input:
         'data/F_cmfinder/done.flag',
         'data/F_cmfinder/bg-done.flag'
@@ -66,7 +66,29 @@ checkpoint F_collect:
         """
         find data/F_cmfinder/D_search-seqs -name "*motif*" -exec basename {{}} \; \
             > {output[0]}
-        find data/F_cmfinder/E_search-seqs -name "*motif*" -exec basename {{}} \; \
+        find data/F_cmfinder/E_search-shuffled -name "*motif*" -exec basename {{}} \; \
             > {output[1]}
         """
+
+checkpoint F_demerge:
+    input:
+        motifs = 'data/F_cmfinder/motifs.txt',
+        bg = 'data/F_cmfinder/bg-motifs.txt'
+    output:
+        'data/F_cmfinder/demerged.tsv'
+    log: 'snakelogs/F_demerge.txt'
+    container: 'renv/renv.sif'
+    conda: 'renv'
+    script:
+        '../scripts/F_demerge.R'
+
+# allow access to fields in demerged.tsv
+# - dir
+# - region
+# - filename
+# - path
+def F_aggregate(wildcards, x):
+    chk = checkpoints.F_demerge.get().output
+    df = pd.read_csv('data/F_cmfinder/demerged.tsv', sep = '\t')
+    return sample_wise(x, df)
 

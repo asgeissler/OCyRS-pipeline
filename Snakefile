@@ -52,8 +52,11 @@ rule all:
         'data/E_search-shuffled/done.flag',
         'data/E_search-filtered-stat.tsv',
         # CMfinder runs
+        'data/F_cmfinder/done.flag',
+        'data/F_cmfinder/bg-done.flag',
         'data/F_cmfinder/motifs.txt',
         'data/F_cmfinder/bg-motifs.txt',
+        'data/F_cmfinder/demerged.tsv',
         # Also make a bacterial Rfam screen in all genomes
         'data/G_rfam-bacteria/download.done',
         'data/G_rfam-bacteria-seeds/download.done',
