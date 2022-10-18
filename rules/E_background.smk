@@ -53,14 +53,14 @@ rule E_sissiz:
     input:
         'data/E_search-filtered/{region}.aln'
     output:
-        'data/E_search-shuffled/{region}.txt'
+        'data/E_search-shuffled_seed_{seed1}_{seed2}/{region}.txt'
     container:
         'sissiz/sissiz-3.0.sif'
     shell:
         """
         SISSIz --clustal -n 1        \
         --tstv --simulate            \
-        --read_seeds=389650868,16063 \
+        --read_seeds={wildcards.seed1},{wildcards.seed2} \
         {input} > {output}     || true
         # the true and touch makes an empty file if SISSIz fails
         # (eg too large input)
@@ -70,32 +70,58 @@ rule E_sissiz:
 rule E_collect:
     input:
         #lambda wild: E_aggregate(wild, 'data/E_search-shuffled/{region}.fna.gz')
-        lambda wild: E_aggregate(wild, 'data/E_search-shuffled/{region}.txt')
+        lambda wild: E_aggregate(wild,
+            'data/E_search-shuffled_seed_389650868_16063/{region}.txt'),
+        lambda wild: E_aggregate(wild,
+            'data/E_search-shuffled_seed_123_456/{region}.txt'),
+        lambda wild: E_aggregate(wild,
+            'data/E_search-shuffled_seed_654_321/{region}.txt'),
+        lambda wild: E_aggregate(wild,
+            'data/E_search-shuffled_seed_789_987/{region}.txt'),
+        lambda wild: E_aggregate(wild,
+            'data/E_search-shuffled_seed_007_42/{region}.txt')
     output:
-        touch('data/E_search-shuffled/done.flag')
+        touch('data/E_search-shuffled.done-flag')
+ 
 
 # Assess overall GC content, seq id, and dinucleotide frequencies
 # before/after shuffeling
 checkpoint E_stat:
     input:
-        'data/E_search-shuffled/done.flag'
+        'data/E_search-shuffled.done-flag'
     output:
-        'data/E_search-filtered-stat.tsv'
+        'data/E_search-shuffled-stat_{seed}.tsv'
         #! side-effect: Convert SISSIz txt to
-        #'data/E_search-shuffled/{region}.fna.gz'
-    log: 'snakelogs/E_stat.txt'
+        #'data/E_search-shuffled_seed_X_Y/{region}.fna.gz'
+    log: 'snakelogs/E_stat/{seed}.txt'
     container: 'renv/renv.sif'
     conda: 'renv'
     threads: 32
     script:
         '../scripts/E_stat.R'
 
+E_seeds = [
+    'seed_389650868_16063',
+    'seed_123_456',
+    'seed_654_321',
+    'seed_789_987',
+    'seed_007_42'
+]
+
+rule E_collect_stat:
+    input:
+        *[ 'data/E_search-shuffled-stat_{}.tsv'.format(i) \
+           for i in E_seeds]
+    output:
+        touch('data/E_search-shuffled_stat.flag')
+
 # custom aggregation of only those SISSIz outputs that were converted to fna.gz
-def E_bg_models(wildcards, x):
-    chk = checkpoints.E_stat.get().output
+# relative to a specific random seed
+def E_bg_models(wild, x):
+    chk = checkpoints.E_stat.get(**wild).output
     # Check which regions where exported
     # (Could be few than in D_search-seqs due to filtering)
-    xs = glob('data/E_search-shuffled/*.fna.gz')
+    xs = glob('data/E_search-shuffled_{seed}/*.fna.gz'.format(**wild))
     xs = [ os.path.basename(i) for i in xs ]
     xs = [ i.split('.')[0] for i in xs ]
     # expand desired string

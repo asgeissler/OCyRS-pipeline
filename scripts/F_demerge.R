@@ -1,5 +1,5 @@
 # CMfinder merges motifs yet still reports the merged motifs, for instance
-# among the reproted motifs, two are redundant and skew the true number of
+# among the repeated motifs, two are redundant and skew the true number of
 # detected motifs:
 # ...
 # K00228_upstream.fna.motif.h2_4
@@ -11,11 +11,10 @@
 
 library(tidyverse)
 
-# path.motifs <- 'data/F_cmfinder/motifs.txt'
-# path.bg <- 'data/F_cmfinder/bg-motifs.txt'
+# path.in <- 'data/predump/motifs.txt'
+# path.in <- 'data/F_cmfinder/motifs.txt'
 
-path.motifs <- unlist(snakemake@input[['motifs']])
-path.bg <- unlist(snakemake@input[['bg']])
+path.in <- unlist(snakemake@input)
 
 out.path <- unlist(snakemake@output)
 
@@ -27,12 +26,16 @@ sink(log)
 # Load data
 
 # Load raw list
-map2(
-  c(path.motifs, path.bg),
-  c('D_search-seqs', 'E_search-shuffled'),
-  ~  tibble(dir = .y, filename = read_lines(.x))
-) %>%
-  bind_rows() -> raw.list
+path.in %>%
+  map(read_lines) %>%
+  unlist() -> raw.list
+raw.list <- tibble(path = raw.list) %>%
+  mutate(
+    filename = basename(path),
+    dir = path %>%
+      dirname %>%
+      basename
+  )
 
 raw.list %>%
   separate(filename, c('region', 'helices'),
@@ -61,14 +64,13 @@ dat %>%
 ################################################################################
 # Remove the merged motifs
 
-dat %>%
-  select(- c(helices, submotifs)) %>%
-  unique %>%
+raw.list %>%
   anti_join(merged, c('dir', 'filename')) -> demerged
 
 ################################################################################
 # some summarizing tables
 
+print('% of motifs after de-merging')
 left_join(
   raw.list %>%
     count(dir) %>%
@@ -85,7 +87,8 @@ left_join(
 # Write out single table of all relevant motifs
 
 demerged %>%
-  mutate(path = sprintf('data/F_cmfinder/%s/%s/%s', dir, region, filename)) -> res
+  separate(filename, c('region', 'helices'),
+           sep = '.fna.motif.', remove = FALSE) -> res
 
 assertthat::assert_that(
   res %>%

@@ -50,14 +50,10 @@ rule all:
         'data/D_intergenic.jpeg',
         'data/D_search-seqs-aln/done.flag',
         # make random background
-        'data/E_search-shuffled/done.flag',
-        'data/E_search-filtered-stat.tsv',
+        'data/E_search-shuffled.done-flag',
+        'data/E_search-shuffled_stat.flag',
         # CMfinder runs
-        'data/F_cmfinder/done.flag',
-        'data/F_cmfinder/bg-done.flag',
-        'data/F_cmfinder/motifs.txt',
-        'data/F_cmfinder/bg-motifs.txt',
-        'data/F_cmfinder/demerged.tsv',
+        'data/F_cmfinder/motifs-demerged.tsv',
         # Also make a bacterial Rfam screen in all genomes
         'data/G_rfam-bacteria/download.done',
         'data/G_rfam-bacteria-seeds/download.done',

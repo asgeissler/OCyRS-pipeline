@@ -40,55 +40,53 @@ rule F_cmfinder:
         """
 
 
-# Trigger  CMfinder
-rule F_all:
+# Trigger  CMfinder for biological sequneces
+rule F_bioruns:
     input:
         lambda wild: D_aggregate(wild, 'data/F_cmfinder/D_search-seqs/{region}')
     output:
-        touch('data/F_cmfinder/done.flag')
-
-
-rule F_all_bg:
-    input:
-        lambda wild: E_bg_models(wild, 'data/F_cmfinder/E_search-shuffled/{region}')
-    output:
-        touch('data/F_cmfinder/bg-done.flag')
-
-
-rule F_collect:
-    input:
-        'data/F_cmfinder/done.flag',
-        'data/F_cmfinder/bg-done.flag'
-    output:
-        'data/F_cmfinder/motifs.txt',
-        'data/F_cmfinder/bg-motifs.txt'
+        'data/F_cmfinder/D_search-seqs/motifs.txt'
     shell:
         """
-        find data/F_cmfinder/D_search-seqs -name "*motif*" -exec basename {{}} \; \
-            > {output[0]}
-        find data/F_cmfinder/E_search-shuffled -name "*motif*" -exec basename {{}} \; \
-            > {output[1]}
+        find data/F_cmfinder/D_search-seqs -name "*motif*" > {output}
+        """
+
+# Trigger CMfinder for the shuffeled sequences
+rule F_random:
+    input:
+        lambda wild: E_bg_models(
+            wild,
+            'data/F_cmfinder/E_search-shuffled_{seed}/{{region}}'.format(**wild)
+        )
+    output:
+        'data/F_cmfinder/E_search-shuffled_{seed}/motifs.txt'
+    shell:
+        """
+        find data/F_cmfinder/E_search-shuffled_{wildcards.seed}  \
+           -name "*motif*"  > {output}
         """
 
 checkpoint F_demerge:
     input:
-        motifs = 'data/F_cmfinder/motifs.txt',
-        bg = 'data/F_cmfinder/bg-motifs.txt'
+        'data/F_cmfinder/D_search-seqs/motifs.txt',
+        *['data/F_cmfinder/E_search-shuffled_{}/motifs.txt'.format(i) \
+          for i in E_seeds]
     output:
-        'data/F_cmfinder/demerged.tsv'
-    log: 'snakelogs/F_demerge.txt'
+        'data/F_cmfinder/motifs-demerged.tsv'
+    log: 'snakelogs/F_demerged.txt'
     container: 'renv/renv.sif'
     conda: 'renv'
     script:
         '../scripts/F_demerge.R'
 
+
 # allow access to fields in demerged.tsv
-# - dir
-# - region
-# - filename
 # - path
+# - filename
+# - dir (eg D_search-seqs)
+# - region
 def F_aggregate(wildcards, x):
     chk = checkpoints.F_demerge.get().output
-    df = pd.read_csv('data/F_cmfinder/demerged.tsv', sep = '\t')
+    df = pd.read_csv('data/F_cmfinder/motifs-demerged.tsv', sep = '\t')
     return sample_wise(x, df)
 

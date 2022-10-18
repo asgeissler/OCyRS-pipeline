@@ -8,11 +8,17 @@ library(furrr)
 library(ape)
 library(Biostrings)
 
+
+# seed <- 'seed_789_987'
+seed <- unlist(snakemake@wildcards[['seed']])
+
 in.full <- 'data/D_search-seqs-aln/*.fna.gz'
 in.filtered <- 'data/E_search-filtered/*.fna.gz'
-in.shuffled <- 'data/E_search-shuffled/*.txt'
+path.seed <- sprintf('data/E_search-shuffled_%s', seed)
+in.shuffled <- file.path(path.seed, '*.txt')
 
-out <- 'data/E_search-filtered-stat.tsv'
+# out <- 'data/E_search-shuffled/seed_{seed1}_{seed2}-stat.tsv'
+out <- unlist(snakemake@output)
 # side-effect: Convert SISSIz txt to fna.gz
 
 # make sure script output is placed in log file
@@ -100,14 +106,14 @@ alns.shuffled %>%
 alns.shuffled %>%
   future_map2(names(.), ~ writeXStringSet(
     as(.x, 'DNAStringSet'),
-    sprintf('%s/%s.aln.fna.gz', 'data/E_search-shuffled', .y),
+    sprintf('%s/%s.aln.fna.gz', path.seed, .y),
     compress = TRUE
   ))
 
 alns.shuffled.nogaps %>%
   future_map2(names(.), ~ writeXStringSet(
     .x,
-    sprintf('%s/%s.fna.gz', 'data/E_search-shuffled', .y),
+    sprintf('%s/%s.fna.gz', path.seed, .y),
     compress = TRUE
   ))
 
