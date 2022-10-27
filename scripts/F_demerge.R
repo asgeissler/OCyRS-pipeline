@@ -12,7 +12,7 @@
 library(tidyverse)
 
 # path.in <- 'data/predump/motifs.txt'
-# path.in <- 'data/F_cmfinder/motifs.txt'
+# path.in <- 'data/F_cmfinder/*/motifs.txt' %>% Sys.glob
 
 path.in <- unlist(snakemake@input)
 
@@ -34,8 +34,10 @@ raw.list <- tibble(path = raw.list) %>%
     filename = basename(path),
     dir = path %>%
       dirname %>%
+      dirname %>%
       basename
-  )
+  ) %>%
+  filter(filename != 'motifs.txt')
 
 raw.list %>%
   separate(filename, c('region', 'helices'),
