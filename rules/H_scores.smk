@@ -100,6 +100,6 @@ rule H_combine:
         'data/H_scores.tsv'
     container: 'renv/renv.sif'
     conda: 'renv'
-    threads: 16
+    threads: 8
     script:
         '../scripts/H_collect_scores.R'
