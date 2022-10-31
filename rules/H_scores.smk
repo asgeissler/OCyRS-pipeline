@@ -102,4 +102,4 @@ rule H_combine:
     conda: 'renv'
     threads: 8
     script:
-        '../scripts/H_collect_scores.R'
+        '../scripts/H_collect-scores.R'
