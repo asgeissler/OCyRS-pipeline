@@ -1,0 +1,4 @@
+
+The image was build with:
+
+sudo singularity build rscape-2.0.0.j.sif Singularity

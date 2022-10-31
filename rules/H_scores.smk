@@ -28,7 +28,7 @@ rule H_rscape:
     output:
         directory('data/H_scores/rscape/{dir}/{file}/')
     container:
-        'rscape\:1.4.0--h87f3376_2'
+        'rscape/rscape-2.0.0.j.sif'
     shell:
         """
         mkdir -p {output}
