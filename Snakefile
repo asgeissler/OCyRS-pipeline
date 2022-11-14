@@ -63,4 +63,10 @@ rule all:
         # Score sto files
         'data/H_scores/done.flag',
         'data/H_scores.tsv',
-        'data/I_fdr.tsv'
+        #  Estimate FDRs, and scan genomes for candidates
+        'data/I_fdr.tsv',
+        'data/I_candidate-models/done.cm',
+        'data/I_cmsearch/runs.done'
+
+
+

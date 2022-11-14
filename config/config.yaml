@@ -8,4 +8,7 @@ phylum: 'Cyanobacteria'
 # Specify Rfam version
 rfamv: '14.8'
 
+# After CMfinder runs and FDR estimation, continue with
+# candidates for cmsearch etc with this cutoff
+fdr_candidates = 10
 
