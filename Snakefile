@@ -70,7 +70,8 @@ rule all:
         'data/I_cmsearch/runs.done',
         # Calibrate score cutoff per model
         # then recall rfam hits
-        'data/J_cmsearch.tsv'
+        'data/J_cmsearch-collected.tsv',
+        'data/J_scoring.png'
 
 
 
