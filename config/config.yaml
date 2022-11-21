@@ -10,5 +10,5 @@ rfamv: '14.8'
 
 # After CMfinder runs and FDR estimation, continue with
 # candidates for cmsearch etc with this cutoff
-fdr_candidates = 10
+fdr_candidates: 10
 

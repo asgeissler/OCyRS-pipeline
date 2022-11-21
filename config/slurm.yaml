@@ -79,3 +79,26 @@ rule H_combine:
     time: 0-01:00:00
     cpus: 8
     mem: 16GB
+
+
+
+I_build:
+    time: 0-05:00:00
+    cpus: 4
+    mem: 8GB
+
+I_cmsearch:
+    time: 0-10:00:00
+    cpus: 4
+    mem: 8GB
+
+
+J_collect:
+    cpus: 32
+    mem: 100GB
+    time: 0-05:00:00
+
+J_calibrate:
+    cpus: 16
+    mem: 32GB
+    time: 0-05:00:00

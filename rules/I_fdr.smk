@@ -34,10 +34,11 @@ rule I_build:
         'data/I_candidate-models/{region}/{motif}.cm'
     container: 'infernal\:1.1.4--pl5321hec16e2b_1'
     threads: 4
-    log: 'snakelogs/I_build/{motif}.txt'
+    log: 'snakelogs/I_build/{region}/{motif}.txt'
     shell:
         """
         tmp=$(mktemp)
+        rm $tmp # use file name, but prevent overwrite error of cmbuild
         cmbuild -n {wildcards.motif} -o {log} $tmp {input}
         cmcalibrate --cpu {threads} $tmp
         mv $tmp {output}
@@ -83,15 +84,3 @@ rule I_pergenome:
         touch('data/I_cmsearch/runs.done')
 
 
-"""
-rule I_combine:
-    input:
-        'data/G_rfam-cmsearch/runs.done'
-    output:
-        protected('data/G_rfam-cmsearch.tsv.gz')
-    container: 'renv/renv.sif'
-    conda: 'renv'
-    threads: 8
-    script:
-        '../scripts/G_combine_search.R'
-"""

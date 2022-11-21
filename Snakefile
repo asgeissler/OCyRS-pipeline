@@ -28,6 +28,7 @@ include: 'rules/F_cmfinder.smk'
 include: 'rules/G_rfam.smk'
 include: 'rules/H_scores.smk'
 include: 'rules/I_fdr.smk'
+include: 'rules/J_recall.smk'
 
 # Target rules
 # Initial proGenomes download is separate to keep remaining rules streamlined
@@ -66,7 +67,10 @@ rule all:
         #  Estimate FDRs, and scan genomes for candidates
         'data/I_fdr.tsv',
         'data/I_candidate-models/done.cm',
-        'data/I_cmsearch/runs.done'
+        'data/I_cmsearch/runs.done',
+        # Calibrate score cutoff per model
+        # then recall rfam hits
+        'data/J_cmsearch.tsv'
 
 
 
