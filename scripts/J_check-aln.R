@@ -169,7 +169,7 @@ cmsearch.motif.overlap %>%
 cmsearch.motif.overlap %>%
   filter(jacc > .99) %>%
   group_by(motif = motif.x) %>%
-  summarize(max.seq.score = max(score)) %>%
+  summarize(min.seq.score = min(score)) %>%
   ungroup -> cutoff
 
 write_tsv(cutoff, out.cutoffs)
@@ -181,7 +181,7 @@ cms %>%
   drop_na -> cand
 
 cand %>%
-  ggplot(aes(score / max.seq.score, - log10(evalue))) +
+  ggplot(aes(score / min.seq.score, - log10(evalue))) +
   geom_hex() +
   scale_fill_viridis_c() +
   xlab('ratio cmsearch hit score / \n max. motif alignment score') +
@@ -199,7 +199,7 @@ cmsearch.motif.overlap %>%
 ###############################################################################
 
 cand %>%
-  filter(score > max.seq.score) %>%
+  filter(score > min.seq.score) %>%
   filter(evalue < .05) -> homologs
 
 write_tsv(homologs, out.homologs)
