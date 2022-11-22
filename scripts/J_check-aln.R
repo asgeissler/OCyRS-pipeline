@@ -172,6 +172,10 @@ cmsearch.motif.overlap %>%
   summarize(max.seq.score = max(score)) %>%
   ungroup -> cutoff
 
+write_tsv(cutoff, out.cutoffs)
+
+###############################################################################
+
 cms %>%
   left_join(cutoff, c('name' = 'motif')) %>%
   drop_na -> cand
