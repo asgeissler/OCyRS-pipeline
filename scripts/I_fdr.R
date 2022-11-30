@@ -215,7 +215,7 @@ scores %>%
 # `ecdf` won't work because it will be under-estimating
 my.fdr <- function(xs) {
   # xs is the random background
-  step <- 1 / length(xs)
+  step <- 1 / length(xs) * 100
   function(x) {
     # For a foreground observation x count no. background motifs with larger value
     up <- sum(xs > x)
@@ -223,10 +223,7 @@ my.fdr <- function(xs) {
     # the error
     pmax(
       step,
-      pmin(
-        100,
-        up * step * 100
-      )
+      up * step
     )
   }
 }
