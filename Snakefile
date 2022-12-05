@@ -26,6 +26,7 @@ include: 'rules/D_search-seqs.smk'
 include: 'rules/E_background.smk'
 include: 'rules/F_cmfinder.smk'
 include: 'rules/G_rfam.smk'
+include: 'rules/G2_rnie.smk'
 include: 'rules/H_scores.smk'
 include: 'rules/I_fdr.smk'
 include: 'rules/J_recall.smk'
@@ -61,6 +62,8 @@ rule all:
         'data/G_rfam-bacteria-seeds/download.done',
         'data/G_rfam-cmsearch/runs.done',
         'data/G_rfam-cmsearch.tsv.gz',
+        # Prediction of terminators
+        'data/G2_terminators/done.flag',
         # Score sto files
         'data/H_scores/done.flag',
         'data/H_scores.tsv',
