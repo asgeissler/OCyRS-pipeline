@@ -64,6 +64,7 @@ rule all:
         'data/G_rfam-cmsearch.tsv.gz',
         # Prediction of terminators
         'data/G2_terminators/done.flag',
+        'data/G2_terminators.tsv.gz',
         # Score sto files
         'data/H_scores/done.flag',
         'data/H_scores.tsv',
