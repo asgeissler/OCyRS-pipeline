@@ -1,18 +1,23 @@
 # Purpose:
 # Check for overlaps between motif homologs and Rfam hits.
 # Check for recall of Rfam families also relative to motif scores.
+# Use difference in score densities of recalling motifs and random
+# background to select candidate motifs
 
 library(tidyverse)
 
 in.rfam <- 'data/G_rfam-cmsearch.tsv.gz'
 in.motifs <- 'data/J_motif-homologs.tsv'
 in.scores <- 'data/I_fdr.tsv'
+in.all.scores <- 'data/H_scores.tsv'
 
 ################################################################################
 # Load data
 rfam <- read_tsv(in.rfam)
 motifs <- read_tsv(in.motifs)
 scores <- read_tsv(in.scores)
+all.scores <- read_tsv(in.all.scores)
+
 
 ################################################################################
 # as genomic range
@@ -62,6 +67,8 @@ plyranges::join_overlap_intersect_directed(
 
 over %>%
   as_tibble() %>%
+  ggplot(aes(jaccard)) +
+  stat_ecdf()
   ggplot(aes(shared.rel)) +
   stat_ecdf() +
   scale_x_continuous(breaks = seq(0, 1, .1)) +
@@ -69,6 +76,22 @@ over %>%
   geom_vline(xintercept = .5, color = 'red') +
   xlab('Rfam hit - motif cmsearch overlap\nrel. to motif hit length') +
   ylab('Emp. cum. density') +
+  theme_bw(18)
+
+over %>%
+  as_tibble() %>%
+  View
+  nrow
+  ggplot(aes(shared.rel, shared)) +
+  geom_point(alpha = 0.7) +
+  scale_x_continuous(breaks = seq(0, 1, .1)) +
+  annotation_logticks(sides = 'l') +
+  scale_y_log10() +
+  # scale_y_continuous(breaks = seq(0, 1, .1)) +
+  geom_vline(xintercept = .5, color = 'red') +
+  geom_hline(yintercept = 20, color = 'blue') +
+  xlab('Rfam hit - motif cmsearch overlap\nrel. to motif hit length') +
+  # ylab('Emp. cum. density') +
   theme_bw(18)
   
 ################################################################################
@@ -143,3 +166,36 @@ scores %>%
   theme(legend.position = 'bottom')
   
 ################################################################################
+
+################################################################################
+
+all.scores %>%
+  transmute(
+    motif,
+    dir = case_when(
+      dir == 'D_search-seqs' ~ 'CMfinder',
+      str_starts(dir, 'E_search-shuffled_seed') ~ 'Random CMfinder',
+      dir == 'G_rfam-bacteria-seeds' ~ 'Rfam'
+    ),
+    logRNAphylo = log10(RNAphylo),
+    log.hmmpair = log10(hmmpair),
+    log.no.seq = log10(nseq),
+    log.alignment.len = log10(alen),
+    avgid,
+    log.nbpairs = log10(nbpairs),
+    fraction.paired = nbpairs / alen * 100,
+    alignment.power = expected / nbpairs * 100,
+    fraction.covarying = observed / nbpairs * 100
+  ) -> foo
+  
+scores %>% 
+  # TODO 10 from config
+  filter(RNAphylo.fdr <= 10) %>%
+  select(motif) %>%
+  left_join(foo, 'motif') %>%
+  mutate(dir = 'CMFinder, FDR≤10%') %>%
+  bind_rows(foo) -> bar
+bar %>%
+  drop_na %>%
+  select(- motif) %>%
+  GGally::ggpairs(aes(color = dir))
