@@ -6,30 +6,43 @@ library(tidyverse)
 library(furrr)
 
 
-# in.cmsearch <- 'data/J_cmsearch-collected.tsv'
-# in.motifs <- 'data/F_cmfinder/motifs-demerged.tsv'
-in.cmsearch <- unlist(snakemake@input[['collected']])
-in.motifs <- unlist(snakemake@input[['motifs']])
+in.cmsearch <- 'data/J_cmsearch-collected.tsv'
+in.pos <- 'data/J_motif-aln-seq-pos.tsv'
+in.fdr <- 'data/I_fdr.tsv'
+in.scores <- 'data/H_scores.tsv'
+# in.cmsearch <- unlist(snakemake@input[['collected']])
+# in.pos <- unlist(snakemake@input[['pos']])
+# in.scores <- unlist(snakemake@input[['scores']])
 
-# out.motifpos <- 'data/J_motif-positions.tsv'
+
+config.cutoff <- 10
+# config.cutoff <- unlist(snakemake@config[['fdr_candidates']])
+
 # out.cutoffs <- 'data/J_score-cutoffs.tsv'
 # out.homologs <- 'data/J_motif-homologs.tsv'
 # out.fig <- 'data/J_overlaps.png'
 
-out.motifpos <- unlist(snakemake@output[['motifpos']])
-out.cutoffs <- unlist(snakemake@output[['cutoffs']])
-out.homologs <- unlist(snakemake@output[['homologs']])
-out.fig <- unlist(snakemake@output[['fig']])
+# out.cutoffs <- unlist(snakemake@output[['cutoffs']])
+# out.homologs <- unlist(snakemake@output[['homologs']])
+# out.fig <- unlist(snakemake@output[['fig']])
 
 
-cpus <- as.integer(unlist(snakemake@threads))
-# cpus <- 20
-plan(multisession, workers = cpus) 
+# cpus <- as.integer(unlist(snakemake@threads))
+cpus <- 20
+plan(multisession, workers = cpus)
+
+# Colorblind-friendly palettes of the Color Universal Design
+# https://riptutorial.com/r/example/28354/colorblind-friendly-palettes
+cbbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
+                "#0072B2", "#D55E00", "#CC79A7")
 
 ###############################################################################
-# Load coordinates of hits
+# Load coordinates
 
-cms <- read_tsv(in.cmsearch)
+motif.seqs.pos <- read_tsv(in.pos)
+
+cms <- read_tsv(in.cmsearch) %>%
+  mutate(cms.row = 1:n())
 
 # Split per genome
 cms %>%
@@ -45,109 +58,45 @@ cms %>%
     grp <- .
     grp %>%
       select(seqnames = tax.bio.chr, start, end, strand,
+             cms.row,
              motif, score, evalue) %>%
       plyranges::as_granges()
   }) %>%
   ungroup %>%
   with(set_names(i, tax_bio)) -> cms.ranges
 
-
 ###############################################################################
-# Load sequences of alignments
+# No. sequences in motifs
 
-worker <- function(path, motif) {
-  # path <- 'data/F_cmfinder/D_search-seqs/K00003_upstream/K00003_upstream.fna.motif.h1_1'
-  # Load the relative positions from the Stockholm motif file
-  path %>%
-    # read in Stockholm
-    read_lines %>%
-    # Keep lines with nucleotide info
-    keep(str_detect, '^[0-9]') %>%
-    tibble(row = .) %>%
-    # separate gene id and sequence
-    separate(row, c('gene', 'seq'), sep = ' +') %>%
-    mutate_at('seq', str_replace_all, 'U', 'T') %>%
-    mutate_at('seq', str_remove_all, '[^A-Z]') %>%
-    # keep track of position of lines
-    mutate(r = 1:n()) %>%
-    # combine for genes with info in multiple lines
-    # in order of apperance in file
-    arrange(gene, r) %>%
-    group_by(gene) %>%
-    summarize(stockholm.seq = str_c(seq, collapse = '')) %>%
-    ungroup %>%
-    mutate(tax.bio = str_remove(gene, '\\.[^.]*$')) %>%
-    select(tax.bio, stockholm.seq) %>%
-    mutate(motif = motif)
-}
-
-in.motifs %>%
-  read_tsv() %>%
-  filter(dir == 'D_search-seqs') %>%
-  select(path, filename) %>%
-  with(future_map2(path, filename, worker)) %>% 
-  bind_rows() -> motif.seqs
+# motif.seqs <- read_tsv(in.seq)
   
-
-###############################################################################
-# Find locations of all aligned sequences following the
-# Efficient genome searching tutorial, section
-# Finding an arbitrary nucleotide pattern in an entire genome
-# https://bioconductor.org/packages/release/bioc/vignettes/BSgenome/inst/doc/GenomeSearching.pdf
-# Idea: reverse complement pattern before search
-
-motif.seqs$tax.bio %>%
-  unique %>%
-  future_map(function(i) {
-    sprintf('data/A_representatives/%s/genome.fna.gz', i) %>%
-      Biostrings::readDNAStringSet() -> genome
-    
-    motif.seqs %>%
-      filter(tax.bio == i) %>%
-      mutate(row = 1:n()) %>%
-      mutate(strand = '+') -> fwd
-    
-    fwd %>%
-      mutate(
-        stockholm.seq = stockholm.seq %>%
-          Biostrings::DNAStringSet() %>%
-          Biostrings::reverseComplement() %>%
-          as.character(),
-        strand = '-'
-      ) %>%
-      bind_rows(fwd) -> patterns
-    
-    
-    patterns %>%
-      group_by_all() %>%
-      do(search = {
-        grp <- .
-        Biostrings::vmatchPattern(grp$stockholm.seq, genome) %>%
-          as.data.frame() %>%
-          transmute(start, end, chr = names(genome)[group])
-      }) %>%
-      ungroup %>%
-      unnest(search) %>%
-      select(motif, chr, start, end, strand)
-  }) %>%
-  bind_rows() -> motif.seqs.pos
-
-write_tsv(motif.seqs.pos, out.motifpos)
+motif.seqs.pos %>%
+  count(motif, name = 'no.seq') -> no.seq
 
 ###############################################################################
 # Check overlap between hits and alignment sequences
 
+motif.seqs.pos %>%
+  mutate(ms.row = 1:n()) -> ms.pos
+
 names(cms.ranges) %>%
   future_map(function(i) {
-    motif.seqs.pos %>%
+    ms.pos %>%
       filter(str_starts(chr, i)) %>%
       rename(seqnames = chr) %>%
       plyranges::as_granges() %>%
-      mutate(aln.len = IRanges::width(.)) -> motif.range
+      mutate(
+        aln.len = IRanges::width(.),
+        aln.strand = strand
+      ) -> motif.range
     
     cms.ranges[[i]] %>%
-      mutate(hit.len = IRanges::width(.)) %>%
-      plyranges::join_overlap_intersect_directed(motif.range) %>%
+      mutate(
+        hit.len = IRanges::width(.),
+        hist.strand = strand
+      ) %>%
+      # plyranges::join_overlap_intersect_directed(motif.range) %>%
+      plyranges::join_overlap_intersect(motif.range) %>%
       as_tibble() %>%
       filter(motif.x == motif.y)
   }) %>%
@@ -155,6 +104,7 @@ names(cms.ranges) %>%
   mutate(jacc = width / (hit.len + aln.len - width)) -> cmsearch.motif.overlap
 
 ###############################################################################
+# Check proportion of alignments recovered by CMsearch
 
 cmsearch.motif.overlap %>%
   ggplot(aes(jacc)) +
@@ -165,6 +115,294 @@ cmsearch.motif.overlap %>%
   ylab('Cum. emp. density') +
   theme_bw(18) -> p1
 
+###############################################################################
+
+cmsearch.motif.overlap %>%
+  filter(jacc == 1) %>%
+  select(
+    motif = motif.x,
+    cms.row, ms.row,
+    aln.strand, hist.strand, 
+  ) %>%
+  filter(aln.strand == hist.strand) %>%
+  select(motif, ms.row) %>%
+  unique %>%
+  count(motif, name = 'seq.recalled') %>%
+  left_join(no.seq, 'motif') %>%
+  mutate(prop = seq.recalled / no.seq * 100) %>%
+  mutate(
+    mf = motif %>%
+      fct_reorder(prop) %>%
+      fct_rev()) -> dat
+
+dat.prop.cutoff <- median(dat$prop)
+
+# plot curve of recall per motifs
+dat %>%
+  ggplot(aes(mf, prop, group = 1)) +
+  geom_line() +
+  geom_point() +
+  geom_hline(yintercept = dat.prop.cutoff, color = 'red') +
+  scale_y_continuous(breaks = seq(0, 100, 10)) +
+  xlab(sprintf(
+    'Candidate motif (FDR <= %g%%)',
+    config.cutoff
+  )) +
+  ylab('Poportion alignment\nseqeucnes recalled') +
+  theme_bw(18) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  ) -> p2
+
+dat %>%
+  filter(prop >= dat.prop.cutoff) %>%
+  select(motif) -> dat.better
+
+print(sprintf(
+  paste(
+    'Of the n=%g motifs with FDR <%g%%, m=%g (%.1f%%) have a recall with',
+    '(exact matches, same strand) above %.2g%%'
+  ),
+  nrow(dat),
+  config.cutoff,
+  nrow(dat.better),
+  nrow(dat.better) / nrow(dat) * 100,
+  dat.prop.cutoff
+))
+
+
+###############################################################################
+# Compare distribution of scores to substantiate selection by data.prop.cutoff
+
+scores <- read_tsv(in.scores)
+
+scores %>%
+  mutate(
+    mode = case_when(
+      dir == 'D_search-seqs' ~ 'CMfinder',
+      dir == 'G_rfam-bacteria-seeds' ~ 'Rfam',
+      TRUE ~ 'Background'
+    )
+  ) -> qual
+
+bind_rows(
+  qual,
+  qual %>%
+    semi_join(dat, 'motif') %>%
+    mutate(mode = sprintf('FDR ≤%g%%', config.cutoff)),
+  qual %>%
+    semi_join(dat.better, 'motif') %>%
+    mutate(mode = 'Aln. seq. recalling')
+) %>%
+  mutate_at(
+    'mode', fct_relevel,
+    "Background",
+    'CMfinder',
+    "FDR ≤10%",
+    "Aln. seq. recalling",
+    "Rfam"
+  ) %>%
+  transmute(
+    mode, motif,
+    'Length' = alen,
+    'No. sequences' = nseq,
+    # 'RNAphylo, log10' = log10(RNAphylo + 1),
+    # 'hmmpair, log10' = log10(hmmpair + 1),
+    # 'Fraction paired positions %, log10' = log10(nbpairs / alen * 100 + 1),
+    # 'Alignment power %, log10' = log10(expected / nbpairs * 100 + 1),
+    # 'Fraction covarying bps %, log10' = log10(observed / nbpairs * 100 + 1)
+    'RNAphylo' = RNAphylo,
+    'hmmpair' = hmmpair,
+    'Fraction paired positions %' = nbpairs / alen * 100,
+    'Alignment power %' = expected / nbpairs * 100,
+    'Fraction covarying bps %' = observed / nbpairs * 100
+  ) -> xs
+
+
+xs %>%
+  gather('k', 'value', - c(mode, motif)) %>%
+  mutate_at('value', ~ log10(.x + 1)) %>%
+  ggplot(aes(mode, value, color = mode)) +
+  geom_violin() +
+  # scale_y_log10() +
+  facet_wrap(~ k, scales = 'free')
+
+###############################################################################
+xs2 %>%
+  select(-motif) %>%
+  mutate_at(
+    'mode', fct_relevel,
+    "Background",
+    'CMfinder',
+    "FDR ≤10%",
+    "Aln. seq. recalling",
+    "Rfam"
+  ) %>%
+  # mutate_if(is.numeric, ~ log10(.x + 1)) %>%
+  mutate_at(
+    c('Length', 'No. sequences', 'RNAphylo'),
+    ~ log10(.x + 1)
+  ) %>%
+  GGally::ggpairs(aes(color = mode)) +
+  scale_color_manual(
+    values = cbbPalette[c(1, 4, 6, 7, 2)],
+    name = NULL
+  ) +
+  scale_fill_manual(
+    values = cbbPalette[c(1, 4, 6, 7, 2)],
+    name = NULL
+  )
+
+# xs2 %>% 
+xs %>% 
+  select(mode, i = `Fraction paired positions %`) %>%
+  group_by(mode) %>%
+  do(is = list(.$i)) %>%
+  ungroup %>%
+  with(set_names(is, mode)) %>%
+  map(1) -> foo
+
+crossing(
+ x =  names(foo),
+ y =  names(foo)
+) %>%
+  filter(x < y) %>%
+  head
+t.test(foo$CMfinder, foo$Background, alternative = 'greater')
+t.test(foo$`FDR ≤10%`, foo$CMfinder, alternative = 'greater')
+t.test(foo$`Aln. seq. recalling`, foo$`FDR ≤10%`, alternative = 'greater')
+t.test(foo$Rfam, foo$`Aln. seq. recalling`, alternative = 'greater')
+
+t.test(foo$Rfam, foo$`Aln. seq. recalling`, alternative = 'two.sided')
+###############################################################################
+
+xs %>%
+  mutate_at(
+    'mode', fct_relevel,
+    "Background",
+    'CMfinder',
+    "FDR ≤10%",
+    "Aln. seq. recalling",
+    "Rfam"
+  ) %>%
+  group_by(motif) %>%
+  slice_max(mode, n = 1) %>%
+  ungroup -> xs2
+
+xs %>%
+  filter(mode %in% c(
+    "FDR ≤10%",
+    "Aln. seq. recalling"
+  )) %>%
+  # filter(mode != 'Background') %>%
+  # filter(mode != 'Rfam') %>%
+  # mutate_if(is.numeric, ~ log10(.x + 1)) %>%
+  mutate_at(
+    c('Length', 'No. sequences', 'RNAphylo'),
+    ~ log10(.x + 1)
+  ) %>%
+  drop_na %>%
+  unite(
+    'row',
+    mode, motif, sep = ';'
+  ) -> foo
+
+foo %>%
+  select(-row) %>%
+  as.matrix %>%
+  magrittr::set_rownames(foo$row) -> score.mat
+
+score.mat %>%
+  apply(2, scale) %>%
+  # magrittr::set_rownames(rownames(score.mat)) -> score.scaled
+  magrittr::set_rownames(rownames(score.mat)) %>%
+  apply(1, scale) %>%
+  t %>%
+  magrittr::set_colnames(colnames(score.mat)) -> score.scaled
+
+# boxplot(score.scaled)
+
+score.pca <- prcomp(score.scaled)
+
+autoplot(
+  score.pca,
+  colour = 'mode',
+  alpha = 0.6,
+  data = tibble(i = rownames(score.scaled)) %>%
+    separate(i, c('mode', 'motif'), sep = ';') %>%
+    mutate_at(
+      'mode', fct_relevel,
+      "Background",
+      'CMfinder',
+      "FDR ≤10%",
+      "Aln. seq. recalling",
+      "Rfam"
+    ),
+  # frame = TRUE, frame.type = 'norm',
+  frame = TRUE, frame.type = 't',
+  loadings = TRUE,
+  loadings.colour = 'blue',
+  loadings.label = TRUE,
+  loadings.label.repel = TRUE,
+  loadings.label.colour = 'black',
+  loadings.label.fontface = 'bold',
+  loadings.label.size = 7
+) +
+  scale_color_manual(
+    values = cbbPalette[c(1, 4, 6, 7, 2)],
+    name = NULL
+  ) +
+  scale_fill_manual(
+    values = cbbPalette[c(1, 4, 6, 7, 2)],
+    name = NULL
+  )
+
+###############################################################################
+###############################################################################
+  
+
+xs %>%
+  mutate_at(
+    c('Length', 'No. sequences', 'RNAphylo'),
+    ~ log10(.x + 1)
+  ) %>%
+  gather('k', 'value', - c(mode, motif)) %>%
+  ggplot(aes(value, color = mode)) +
+  stat_ecdf(size = 1.1) +
+  scale_color_manual(
+    values = cbbPalette[c(1, 4, 6, 7, 2)],
+    name = NULL
+  ) +
+  xlab('Parameter value') +
+  ylab('Emp. cum. density') +
+  scale_y_continuous(breaks = seq(0, 1, .1)) +
+  facet_wrap(~ k, scales = 'free', ncol = 2) +
+  theme_bw(16) +
+  theme(legend.position = 'bottom')
+
+xs %>%
+  filter(mode == 'Aln. seq. recalling') %>%
+  left_join(dat, 'motif') %>%
+  View
+
+xs %>%
+  mutate(
+    'Length, log10' = log10(Length + 1),
+    'No. sequences, log10' = log10(`No. sequences` + 1),
+    'RNAphylo, log10' = log10(RNAphylo + 1)
+  ) %>%
+  select(- c('Length', 'No. sequences', 'RNAphylo')) %>%
+  select(- motif) %>%
+  GGally::ggpairs(aes(color = mode)) +
+  scale_color_manual(values = cbbPalette[c(1, 4, 6, 7, 2)]) +
+  scale_fill_manual(values = cbbPalette[c(1, 4, 6, 7, 2)])
+
+###############################################################################
+###############################################################################
+###############################################################################
 ###############################################################################
 cmsearch.motif.overlap %>%
   filter(jacc > .99) %>%
@@ -177,7 +415,17 @@ write_tsv(cutoff, out.cutoffs)
 ###############################################################################
 
 cms %>%
-  left_join(cutoff, c('name' = 'motif')) %>%
+  rename(motif = name) %>%
+  left_join(
+    cmsearch.motif.overlap %>%
+      filter(jacc > .99) %>%
+      select(motif = motif.x, cms.row) %>%
+      unique() %>%
+      mutate(alignment.seq = TRUE),
+    c('motif', 'cms.row')
+  ) %>%
+  mutate_at('alignment.seq', replace_na, FALSE) %>%
+  left_join(cutoff, 'motif') %>%
   drop_na -> cand
 
 cand %>%

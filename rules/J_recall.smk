@@ -10,13 +10,24 @@ rule J_collect:
         '../scripts/J_collect.R'
 
 
+rule J_seq_pos:
+    input: 
+        'data/I_fdr.tsv'
+    output:
+        pos = 'data/J_motif-aln-seq-pos.tsv',
+        seq = 'data/J_motif-aln-seqs.tsv.gz'
+    container: 'renv/renv.sif'
+    threads: 16
+    conda: 'renv'
+    script:
+        '../scripts/J_aln-seq-pos.R'
+
 
 rule J_calibrate:
     input: 
         collected = 'data/J_cmsearch-collected.tsv',
-        motifs = 'data/F_cmfinder/motifs-demerged.tsv'
+        pos = 'data/J_motif-aln-seq-pos.tsv'
     output:
-        motifpos = 'data/J_motif-aln-seq-pos.tsv',
         cutoffs = 'data/J_score-cutoffs.tsv',
         homologs = 'data/J_motif-homologs.tsv',
         fig = 'data/J_scoring.png'
