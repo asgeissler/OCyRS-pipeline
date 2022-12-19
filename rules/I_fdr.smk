@@ -44,6 +44,30 @@ rule I_build:
         mv $tmp {output}
         """
 
+# Compute stats for CM model
+rule I_cmstat:
+    input:
+        'data/I_candidate-models/{region}/{motif}.cm'
+    output:
+        'data/I_cmstat/{region}/{motif}.txt'
+    container: 'infernal\:1.1.4--pl5321hec16e2b_1'
+    log: 'snakelogs/I_cmstat/{region}/{motif}.txt'
+    shell:
+        """
+        cmstat {input} > {output}
+        """
+
+rule I_cmstat_agg:
+    input:
+        lambda wild: I_candidates_aggregate(wild, 'data/I_cmstat/{region}/{motif}.txt')
+    output:
+        'data/I_cmstat.tsv'
+    container: 'renv/renv.sif'
+    conda: 'renv'
+    script:
+        '../scripts/I_cmstat.R'
+
+
 rule I_build_cands:
     input:
         lambda wild: I_candidates_aggregate(wild, 'data/I_candidate-models/{region}/{motif}.cm')
