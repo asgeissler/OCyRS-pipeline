@@ -108,6 +108,13 @@ J_collect:
     mem: 100GB
     time: 0-05:00:00
 
+
+J_seq_pos:
+    cpus: 16
+    mem: 32GB
+    time: 0-05:00:00
+
+
 J_calibrate:
     cpus: 16
     mem: 32GB

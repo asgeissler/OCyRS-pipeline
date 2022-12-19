@@ -71,9 +71,11 @@ rule all:
         #  Estimate FDRs, and scan genomes for candidates
         'data/I_fdr.tsv',
         'data/I_candidate-models/done.cm',
+        'data/I_cmstat.tsv',
         'data/I_cmsearch/runs.done',
         # Calibrate score cutoff per model
         # then recall rfam hits
+        'data/J_motif-aln-seq-pos.tsv',
         'data/J_cmsearch-collected.tsv',
         'data/J_scoring.png'
 
