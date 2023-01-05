@@ -10,6 +10,7 @@ in.cmsearch <- 'data/J_cmsearch-collected.tsv'
 in.pos <- 'data/J_motif-aln-seq-pos.tsv'
 in.fdr <- 'data/I_fdr.tsv'
 in.scores <- 'data/H_scores.tsv'
+in.cmstat <- 'data/I_cmstat.tsv'
 # in.cmsearch <- unlist(snakemake@input[['collected']])
 # in.pos <- unlist(snakemake@input[['pos']])
 # in.scores <- unlist(snakemake@input[['scores']])
@@ -135,7 +136,8 @@ cmsearch.motif.overlap %>%
       fct_reorder(prop) %>%
       fct_rev()) -> dat
 
-dat.prop.cutoff <- median(dat$prop)
+# dat.prop.cutoff <- median(dat$prop)
+dat.prop.cutoff <- 90
 
 # plot curve of recall per motifs
 dat %>%
@@ -143,6 +145,7 @@ dat %>%
   geom_line() +
   geom_point() +
   geom_hline(yintercept = dat.prop.cutoff, color = 'red') +
+  geom_hline(yintercept = 50, color = 'blue') +
   scale_y_continuous(breaks = seq(0, 100, 10)) +
   xlab(sprintf(
     'Candidate motif (FDR <= %g%%)',
@@ -156,6 +159,8 @@ dat %>%
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank()
   ) -> p2
+# p2
+
 
 dat %>%
   filter(prop >= dat.prop.cutoff) %>%
@@ -172,12 +177,24 @@ print(sprintf(
   nrow(dat.better) / nrow(dat) * 100,
   dat.prop.cutoff
 ))
+# [1] "Of the n=822 motifs with FDR <10%, m=462 (56.2%) have a recall with
+#   (exact matches, same strand) above 90%"
 
+cowplot::plot_grid(
+  p1, p2,
+  labels = 'AUTO',
+  label_size = 18
+)
+ggsave('foo.jpeg',
+       width = 16, height = 9,
+       scale = 0.8)
 
 ###############################################################################
-# Compare distribution of scores to substantiate selection by data.prop.cutoff
+# Compare distribution of scores to substantiate selection by
+# alignment sequence recall
 
 scores <- read_tsv(in.scores)
+cmstat <- read_tsv(in.cmstat)
 
 scores %>%
   mutate(
@@ -189,191 +206,87 @@ scores %>%
   ) -> qual
 
 bind_rows(
-  qual,
   qual %>%
-    semi_join(dat, 'motif') %>%
-    mutate(mode = sprintf('FDR ≤%g%%', config.cutoff)),
+    filter(mode != 'CMfinder') %>%
+    # prevent mixing background motifs with cmstat
+    mutate(motif = ifelse(
+      mode == 'Background',
+      paste0('bg', motif),
+      motif
+    )),
   qual %>%
-    semi_join(dat.better, 'motif') %>%
-    mutate(mode = 'Aln. seq. recalling')
+    filter(mode == 'CMfinder') %>%
+    anti_join(dat, 'motif') %>%
+    mutate(mode = sprintf('FDR >%g%%', config.cutoff)),
+  # qual %>%
+  #   semi_join(dat, 'motif') %>%
+  #   mutate(mode = sprintf('FDR ≤%g%%', config.cutoff)),
+  qual %>%
+    semi_join(
+      dat %>%
+        filter(prop >= dat.prop.cutoff) %>%
+        select(motif),
+      'motif'
+    ) %>%
+    mutate(mode = 'High aln. seq. recalling'),
+  qual %>%
+    semi_join(
+      dat %>%
+        filter(prop < dat.prop.cutoff) %>%
+        filter(prop >= 50) %>%
+        select(motif),
+    ) %>%
+    mutate(mode = 'Med. aln. seq. recalling'),
+  qual %>%
+    semi_join(
+      dat %>%
+        filter(prop < 50) %>%
+        select(motif),
+    ) %>%
+    mutate(mode = 'Low aln. seq. recalling')
 ) %>%
+  # pull(mode) %>% unique %>% dput
   mutate_at(
     'mode', fct_relevel,
     "Background",
-    'CMfinder',
-    "FDR ≤10%",
-    "Aln. seq. recalling",
+    'FDR >10%',
+    # 'CMfinder',
+    # "FDR ≤10%",
+    "Low aln. seq. recalling",
+    "Med. aln. seq. recalling",
+    "High aln. seq. recalling",
     "Rfam"
   ) %>%
+  left_join(cmstat, 'motif') %>%
   transmute(
     mode, motif,
-    'Length' = alen,
-    'No. sequences' = nseq,
-    # 'RNAphylo, log10' = log10(RNAphylo + 1),
-    # 'hmmpair, log10' = log10(hmmpair + 1),
-    # 'Fraction paired positions %, log10' = log10(nbpairs / alen * 100 + 1),
-    # 'Alignment power %, log10' = log10(expected / nbpairs * 100 + 1),
-    # 'Fraction covarying bps %, log10' = log10(observed / nbpairs * 100 + 1)
-    'RNAphylo' = RNAphylo,
-    'hmmpair' = hmmpair,
-    'Fraction paired positions %' = nbpairs / alen * 100,
+    # CMfinder pipeline stats
+    'Length, log' = log10(alen + 1),
+    'Sequences, log' = log10(nseq.x + 1),
+    'RNAphylo, log' = log10(RNAphylo + 1),
+    'hmmpair, log' = log10(hmmpair + 1),
+    # Ratios
+    'RNAphylo-Length, log-ratio' = `RNAphylo, log` / `Length, log`,
+    'RNAphylo-Sequences, log-ratio' = `RNAphylo, log` / `Sequences, log`,
+    # R-Scape
+    'Avg. seq. id %' = avgid,
+    'Fraction paired positions %' = 2 * nbpairs / alen * 100,
     'Alignment power %' = expected / nbpairs * 100,
-    'Fraction covarying bps %' = observed / nbpairs * 100
+    'Fraction covarying bps %' = observed / nbpairs * 100,
+    # CMstat
+    # consensus_residues_len, expected_max_hit_len,
+    Bifurcations = bifurcations,
+    'Rel. entropy CM' = rel_entropy_cm,
+    'Rel. entropy hmm' =  rel_entropy_hmm
   ) -> xs
 
-
 xs %>%
-  gather('k', 'value', - c(mode, motif)) %>%
-  mutate_at('value', ~ log10(.x + 1)) %>%
-  ggplot(aes(mode, value, color = mode)) +
-  geom_violin() +
-  # scale_y_log10() +
-  facet_wrap(~ k, scales = 'free')
-
-###############################################################################
-xs2 %>%
-  select(-motif) %>%
-  mutate_at(
-    'mode', fct_relevel,
-    "Background",
-    'CMfinder',
-    "FDR ≤10%",
-    "Aln. seq. recalling",
-    "Rfam"
-  ) %>%
-  # mutate_if(is.numeric, ~ log10(.x + 1)) %>%
-  mutate_at(
-    c('Length', 'No. sequences', 'RNAphylo'),
-    ~ log10(.x + 1)
-  ) %>%
-  GGally::ggpairs(aes(color = mode)) +
-  scale_color_manual(
-    values = cbbPalette[c(1, 4, 6, 7, 2)],
-    name = NULL
-  ) +
-  scale_fill_manual(
-    values = cbbPalette[c(1, 4, 6, 7, 2)],
-    name = NULL
-  )
-
-# xs2 %>% 
-xs %>% 
-  select(mode, i = `Fraction paired positions %`) %>%
-  group_by(mode) %>%
-  do(is = list(.$i)) %>%
-  ungroup %>%
-  with(set_names(is, mode)) %>%
-  map(1) -> foo
-
-crossing(
- x =  names(foo),
- y =  names(foo)
-) %>%
-  filter(x < y) %>%
-  head
-t.test(foo$CMfinder, foo$Background, alternative = 'greater')
-t.test(foo$`FDR ≤10%`, foo$CMfinder, alternative = 'greater')
-t.test(foo$`Aln. seq. recalling`, foo$`FDR ≤10%`, alternative = 'greater')
-t.test(foo$Rfam, foo$`Aln. seq. recalling`, alternative = 'greater')
-
-t.test(foo$Rfam, foo$`Aln. seq. recalling`, alternative = 'two.sided')
-###############################################################################
-
-xs %>%
-  mutate_at(
-    'mode', fct_relevel,
-    "Background",
-    'CMfinder',
-    "FDR ≤10%",
-    "Aln. seq. recalling",
-    "Rfam"
-  ) %>%
-  group_by(motif) %>%
-  slice_max(mode, n = 1) %>%
-  ungroup -> xs2
-
-xs %>%
-  filter(mode %in% c(
-    "FDR ≤10%",
-    "Aln. seq. recalling"
-  )) %>%
-  # filter(mode != 'Background') %>%
-  # filter(mode != 'Rfam') %>%
-  # mutate_if(is.numeric, ~ log10(.x + 1)) %>%
-  mutate_at(
-    c('Length', 'No. sequences', 'RNAphylo'),
-    ~ log10(.x + 1)
-  ) %>%
-  drop_na %>%
-  unite(
-    'row',
-    mode, motif, sep = ';'
-  ) -> foo
-
-foo %>%
-  select(-row) %>%
-  as.matrix %>%
-  magrittr::set_rownames(foo$row) -> score.mat
-
-score.mat %>%
-  apply(2, scale) %>%
-  # magrittr::set_rownames(rownames(score.mat)) -> score.scaled
-  magrittr::set_rownames(rownames(score.mat)) %>%
-  apply(1, scale) %>%
-  t %>%
-  magrittr::set_colnames(colnames(score.mat)) -> score.scaled
-
-# boxplot(score.scaled)
-
-score.pca <- prcomp(score.scaled)
-
-autoplot(
-  score.pca,
-  colour = 'mode',
-  alpha = 0.6,
-  data = tibble(i = rownames(score.scaled)) %>%
-    separate(i, c('mode', 'motif'), sep = ';') %>%
-    mutate_at(
-      'mode', fct_relevel,
-      "Background",
-      'CMfinder',
-      "FDR ≤10%",
-      "Aln. seq. recalling",
-      "Rfam"
-    ),
-  # frame = TRUE, frame.type = 'norm',
-  frame = TRUE, frame.type = 't',
-  loadings = TRUE,
-  loadings.colour = 'blue',
-  loadings.label = TRUE,
-  loadings.label.repel = TRUE,
-  loadings.label.colour = 'black',
-  loadings.label.fontface = 'bold',
-  loadings.label.size = 7
-) +
-  scale_color_manual(
-    values = cbbPalette[c(1, 4, 6, 7, 2)],
-    name = NULL
-  ) +
-  scale_fill_manual(
-    values = cbbPalette[c(1, 4, 6, 7, 2)],
-    name = NULL
-  )
-
-###############################################################################
-###############################################################################
-  
-
-xs %>%
-  mutate_at(
-    c('Length', 'No. sequences', 'RNAphylo'),
-    ~ log10(.x + 1)
-  ) %>%
   gather('k', 'value', - c(mode, motif)) %>%
   ggplot(aes(value, color = mode)) +
   stat_ecdf(size = 1.1) +
   scale_color_manual(
-    values = cbbPalette[c(1, 4, 6, 7, 2)],
+    values = cbbPalette[c(1, 4, 3, 8, 7, 2)],
+    # values = cbbPalette,
     name = NULL
   ) +
   xlab('Parameter value') +
@@ -384,25 +297,81 @@ xs %>%
   theme(legend.position = 'bottom')
 
 xs %>%
-  filter(mode == 'Aln. seq. recalling') %>%
-  left_join(dat, 'motif') %>%
-  View
+  gather('k', 'value', - c(mode, motif)) %>%
+  ggplot(aes(mode, value, fill = mode)) +
+  geom_boxplot() +
+  scale_fill_manual(
+    values = cbbPalette[c(1, 4, 3, 8, 7, 2)],
+    # values = cbbPalette,
+    name = NULL
+  ) +
+  xlab(NULL) +
+  ylab('Parameter value') +
+  # scale_y_continuous(breaks = seq(0, 1, .1)) +
+  facet_wrap(~ k, scales = 'free_y', ncol = 3) +
+  theme_bw(16) +
+  theme(
+    legend.position = 'bottom',
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  )
+
+ggsave('foo1.jpeg', width = 12, height = 16)
+
+###############################################################################
+xs %>%
+  select(-motif) %>%
+  GGally::ggpairs(aes(color = mode)) +
+  scale_color_manual(
+    values = cbbPalette[c(1, 4, 3, 8, 7, 2)],
+    name = NULL
+  ) +
+  scale_fill_manual(
+    values = cbbPalette[c(1, 4, 3, 8, 7, 2)],
+    name = NULL
+  ) +
+  theme_bw(12)
+
+ggsave('foo2.jpeg', width = 30, height = 30)
+
+###############################################################################
 
 xs %>%
-  mutate(
-    'Length, log10' = log10(Length + 1),
-    'No. sequences, log10' = log10(`No. sequences` + 1),
-    'RNAphylo, log10' = log10(RNAphylo + 1)
-  ) %>%
-  select(- c('Length', 'No. sequences', 'RNAphylo')) %>%
   select(- motif) %>%
-  GGally::ggpairs(aes(color = mode)) +
-  scale_color_manual(values = cbbPalette[c(1, 4, 6, 7, 2)]) +
-  scale_fill_manual(values = cbbPalette[c(1, 4, 6, 7, 2)])
+  filter(str_detect(mode, 'recalling')) %>%
+  select(- c(Bifurcations, `Rel. entropy CM`, `Rel. entropy hmm`)) %>%
+  mutate_if(is.numeric, scale) %>%
+  drop_na -> xs2
+xs2 %>%
+  select(- mode) %>%
+  boxplot
+
+xs2.ld <- MASS::lda(mode ~ ., xs2)
+
+foo <- predict(
+  xs2.ld,
+  select(xs2, - mode)
+)
+
+xs2.ld
+
+table(as.character(foo$class) == xs2$mode)
+
+foo$x %>%
+  as_tibble %>%
+  mutate(mode = xs2$mode) %>%
+  ggplot(aes(LD1, LD2, color = mode)) +
+  # geom_point(alpha = 0.7) +
+  geom_density_2d() +
+  scale_color_manual(
+    values = cbbPalette[c(1, 4, 6, 8, 7, 2)],
+    name = NULL
+  ) +
+  theme_bw(16)
 
 ###############################################################################
 ###############################################################################
-###############################################################################
+
+
 ###############################################################################
 cmsearch.motif.overlap %>%
   filter(jacc > .99) %>%

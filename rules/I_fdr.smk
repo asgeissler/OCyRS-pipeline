@@ -56,10 +56,24 @@ rule I_cmstat:
         """
         cmstat {input} > {output}
         """
+#
+# Compute stats for CM model of Rfam families
+rule I_cmstat_rfam:
+    input:
+        'data/G_rfam-bacteria/{family}.cm'
+    output:
+        'data/I_cmstat-rfam/{family}.txt'
+    container: 'infernal\:1.1.4--pl5321hec16e2b_1'
+    log: 'snakelogs/I_cmstat-rfam/{family}.txt'
+    shell:
+        """
+        cmstat {input} > {output}
+        """
 
 rule I_cmstat_agg:
     input:
-        lambda wild: I_candidates_aggregate(wild, 'data/I_cmstat/{region}/{motif}.txt')
+        lambda wild: I_candidates_aggregate(wild, 'data/I_cmstat/{region}/{motif}.txt'),
+        lambda wild: G_aggregate(wild, 'data/I_cmstat-rfam/{family}.txt')
     output:
         'data/I_cmstat.tsv'
     container: 'renv/renv.sif'

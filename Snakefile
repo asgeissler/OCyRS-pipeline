@@ -73,11 +73,12 @@ rule all:
         'data/I_candidate-models/done.cm',
         'data/I_cmstat.tsv',
         'data/I_cmsearch/runs.done',
-        # Calibrate score cutoff per model
-        # then recall rfam hits
+        # Collect cmsearch of motifs and collect positions of
+        # alignment sequences (by exact look up)
         'data/J_motif-aln-seq-pos.tsv',
         'data/J_cmsearch-collected.tsv',
-        'data/J_scoring.png'
+        # TODO
+        #'data/J_scoring.png'
 
 
 
