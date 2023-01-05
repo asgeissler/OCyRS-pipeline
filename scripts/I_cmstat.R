@@ -3,8 +3,12 @@
 library(tidyverse)
 
 
-'data/I_cmstat/*/*.txt' %>%
-  Sys.glob() %>%
+c(
+  'data/I_cmstat/*/*.txt',
+  'data/I_cmstat-rfam/*.txt'
+) %>%
+  map(Sys.glob) %>%
+  unlist %>%
   map(read_lines) %>%
   map(discard, str_detect, pattern = '^#') %>%
   unlist -> xs
@@ -19,10 +23,19 @@ cols <- c(
 )
 
 xs %>%
+  # remove leading spaces
   str_remove('^ *') %>%
+  # split files on whitespace
   str_split(pattern = ' +') %>%
+  # set colnames
   map(set_names, cols) %>%
+  # collect as table
   bind_rows() %>%
+  # keep Rfam idea instead of name for matching
+  mutate(
+    name = ifelse(accession == '-', name, accession)
+  ) %>%
+  # nicer names
   select(
     'motif' = name,
     nseq, eff_nseq,
