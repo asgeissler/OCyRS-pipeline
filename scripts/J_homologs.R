@@ -8,30 +8,43 @@ library(furrr)
 library(corrplot)
 
 
-in.cmsearch <- 'data/J_cmsearch-collected.tsv'
-in.pos <- 'data/J_motif-aln-seq-pos.tsv'
-in.fdr <- 'data/I_fdr.tsv'
-in.scores <- 'data/H_scores.tsv'
-in.cmstat <- 'data/I_cmstat.tsv'
-# in.cmsearch <- unlist(snakemake@input[['collected']])
-# in.pos <- unlist(snakemake@input[['pos']])
-# in.scores <- unlist(snakemake@input[['scores']])
+# in.cmsearch <- 'data/J_cmsearch-collected.tsv'
+# in.pos <- 'data/J_motif-aln-seq-pos.tsv'
+# in.fdr <- 'data/I_fdr.tsv'
+# in.scores <- 'data/H_scores.tsv'
+# in.cmstat <- 'data/I_cmstat.tsv'
+in.cmsearch <- unlist(snakemake@input[['collected']])
+in.pos <- unlist(snakemake@input[['pos']])
+in.fdr <- unlist(snakemake@input[['fdr']])
+in.scores <- unlist(snakemake@input[['scores']])
+in.cmstat <- unlist(snakemake@input[['cmstat']])
 
 
-config.cutoff <- 10
-# config.cutoff <- unlist(snakemake@config[['fdr_candidates']])
+# config.cutoff <- 10
+config.cutoff <- unlist(snakemake@config[['fdr_candidates']])
 
-# out.cutoffs <- 'data/J_score-cutoffs.tsv'
+# out.cutoffs <- 'data/J_gathering-scores.tsv'
 # out.homologs <- 'data/J_motif-homologs.tsv'
-# out.fig <- 'data/J_overlaps.png'
+# out.fig.jaccard <- 'data/J_overlaps.jpeg'
+# out.fig.boxplot <- 'data/J_score-boxplots.jpeg'
+# out.fig.cor <- 'data/J_score-cor.jpeg'
+# out.fig.powcov <- 'data/J_high-power-covariation.jpeg'
+# out.fig.eval <- 'data/J_eval.jpeg'
+# out.fig.homologs <- 'data/J_motif-homologs.jpeg'
 
-# out.cutoffs <- unlist(snakemake@output[['cutoffs']])
-# out.homologs <- unlist(snakemake@output[['homologs']])
-# out.fig <- unlist(snakemake@output[['fig']])
+out.cutoffs <- unlist(snakemake@output[['cutoffs']])
+out.homologs <- unlist(snakemake@output[['homologs']])
+
+out.fig.jaccard <- unlist(snakemake@output[['fig_jaccard']])
+out.fig.boxplot <- unlist(snakemake@output[['fig_boxplot']])
+out.fig.cor <-  unlist(snakemake@output[['fig_cor']])
+out.fig.powcov <- unlist(snakemake@output[['fig_powcov']])
+out.fig.eval <-  unlist(snakemake@output[['fig_eval']])
+out.fig.homologs <-  unlist(snakemake@output[['fig_homologs']])
 
 
-# cpus <- as.integer(unlist(snakemake@threads))
-cpus <- 20
+cpus <- as.integer(unlist(snakemake@threads))
+# cpus <- 20
 plan(multisession, workers = cpus)
 
 # Colorblind-friendly palettes of the Color Universal Design
@@ -132,7 +145,17 @@ cmsearch.motif.overlap %>%
   unique %>%
   count(motif, name = 'seq.recalled') %>%
   left_join(no.seq, 'motif') %>%
-  mutate(prop = seq.recalled / no.seq * 100) %>%
+  mutate(prop = seq.recalled / no.seq * 100) -> dat
+
+# Add excplicit 0 for motifs without a single recalled!
+fdr <- read_tsv(in.fdr)
+fdr %>%
+  filter(RNAphylo.fdr <= config.cutoff) %>%
+  select(motif) %>%
+  unique %>%
+  left_join(dat, 'motif') %>%
+  # filter(!complete.cases(.)) %>%
+  mutate_at('prop', replace_na, 0) %>%
   mutate(
     mf = motif %>%
       fct_reorder(prop) %>%
@@ -187,7 +210,7 @@ cowplot::plot_grid(
   labels = 'AUTO',
   label_size = 18
 )
-ggsave('foo.jpeg',
+ggsave(out.fig.jaccard,
        width = 16, height = 9,
        scale = 0.8)
 
@@ -302,7 +325,7 @@ xs %>%
     axis.text.x = element_text(angle = 60, hjust = 1)
   )
 
-ggsave('foo1.jpeg', width = 12, height = 16)
+ggsave(out.fig.boxplot, width = 12, height = 16)
 
 ###############################################################################
 # Show correlations between score metrics
@@ -317,7 +340,7 @@ xs %>%
 xs.ord <- corrplot::corrMatOrder(xs.cor, 'hclust')
 xs.cor <- xs.cor[xs.ord, xs.ord]
 
-jpeg('foo-cor.jpeg', width = 3000, height = 3000, res = 400)
+jpeg(out.fig.cor, width = 3000, height = 3000, res = 400)
 corrplot(
   xs.cor,
   order = 'hclust',
@@ -353,7 +376,7 @@ xs %>%
   theme_bw(16) +
   theme(legend.position = 'bottom')
   
-ggsave('foo3.jpeg', width = 8, height = 9)
+ggsave(out.fig.powcov, width = 8, height = 9)
 
 ###############################################################################
 # Select candidate motifs
@@ -373,7 +396,7 @@ xs %>%
 
 cmsearch.motif.overlap %>%
   semi_join(xs.cand, c('motif.x' = 'motif')) %>%
-  filter(jacc > .99) %>%
+  filter(jacc == 1) %>%
   group_by(motif = motif.x) %>%
   summarize(min.seq.score = min(score)) %>%
   ungroup -> cutoff
@@ -415,7 +438,7 @@ cand %>%
   theme_bw(18) +
   theme(legend.position = 'bottom')
 
-ggsave('foo4.jpeg', width = 12, height = 8)
+ggsave(out.fig.eval, width = 12, height = 8)
 
 ###############################################################################
 # List homologs
@@ -441,6 +464,6 @@ homologs %>%
   ylab('Cum. emp. density') +
   theme_bw(18)
 
-ggsave('foo5.jpeg', width = 9, height = 8)
+ggsave(out.fig.homologs, width = 9, height = 8)
 
 ###############################################################################
