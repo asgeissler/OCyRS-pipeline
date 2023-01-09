@@ -5,6 +5,8 @@
 library(tidyverse)
 library(furrr)
 
+library(corrplot)
+
 
 in.cmsearch <- 'data/J_cmsearch-collected.tsv'
 in.pos <- 'data/J_motif-aln-seq-pos.tsv'
@@ -266,8 +268,8 @@ bind_rows(
     'RNAphylo, log' = log10(RNAphylo + 1),
     'hmmpair, log' = log10(hmmpair + 1),
     # Ratios
-    'RNAphylo-Length, log-ratio' = `RNAphylo, log` / `Length, log`,
-    'RNAphylo-Sequences, log-ratio' = `RNAphylo, log` / `Sequences, log`,
+    # 'RNAphylo-Length, log-ratio' = `RNAphylo, log` / `Length, log`,
+    # 'RNAphylo-Sequences, log-ratio' = `RNAphylo, log` / `Sequences, log`,
     # R-Scape
     'Avg. seq. id %' = avgid,
     'Fraction paired positions %' = 2 * nbpairs / alen * 100,
@@ -280,21 +282,6 @@ bind_rows(
     'Rel. entropy hmm' =  rel_entropy_hmm
   ) -> xs
 
-xs %>%
-  gather('k', 'value', - c(mode, motif)) %>%
-  ggplot(aes(value, color = mode)) +
-  stat_ecdf(size = 1.1) +
-  scale_color_manual(
-    values = cbbPalette[c(1, 4, 3, 8, 7, 2)],
-    # values = cbbPalette,
-    name = NULL
-  ) +
-  xlab('Parameter value') +
-  ylab('Emp. cum. density') +
-  scale_y_continuous(breaks = seq(0, 1, .1)) +
-  facet_wrap(~ k, scales = 'free', ncol = 2) +
-  theme_bw(16) +
-  theme(legend.position = 'bottom')
 
 xs %>%
   gather('k', 'value', - c(mode, motif)) %>%
@@ -318,62 +305,74 @@ xs %>%
 ggsave('foo1.jpeg', width = 12, height = 16)
 
 ###############################################################################
-xs %>%
-  select(-motif) %>%
-  GGally::ggpairs(aes(color = mode)) +
-  scale_color_manual(
-    values = cbbPalette[c(1, 4, 3, 8, 7, 2)],
-    name = NULL
-  ) +
-  scale_fill_manual(
-    values = cbbPalette[c(1, 4, 3, 8, 7, 2)],
-    name = NULL
-  ) +
-  theme_bw(12)
-
-ggsave('foo2.jpeg', width = 30, height = 30)
-
-###############################################################################
+# Show correlations between score metrics
 
 xs %>%
-  select(- motif) %>%
-  filter(str_detect(mode, 'recalling')) %>%
-  select(- c(Bifurcations, `Rel. entropy CM`, `Rel. entropy hmm`)) %>%
-  mutate_if(is.numeric, scale) %>%
-  drop_na -> xs2
-xs2 %>%
-  select(- mode) %>%
-  boxplot
+  select(- c(motif, mode)) %>%
+  drop_na() %>%
+  cor -> xs.cor
 
-xs2.ld <- MASS::lda(mode ~ ., xs2)
+# Order of score variables
+# Do ahead of plot, such that the number coloration can be chosen
+xs.ord <- corrplot::corrMatOrder(xs.cor, 'hclust')
+xs.cor <- xs.cor[xs.ord, xs.ord]
 
-foo <- predict(
-  xs2.ld,
-  select(xs2, - mode)
+jpeg('foo-cor.jpeg', width = 3000, height = 3000, res = 400)
+corrplot(
+  xs.cor,
+  order = 'hclust',
+  method = 'square',
+  type = 'upper',
+  col = COL2('RdYlBu'),
+  # addCoef.col = 'white',
+  addCoef.col = xs.cor[upper.tri(xs.cor, diag = TRUE)] %>%
+    abs %>%
+    map( ~ ifelse(.x > .5, 'white', 'black')) %>%
+    unlist
 )
+dev.off()
 
-xs2.ld
+###############################################################################
+# Argue via power cutoff for covariation cutoff
 
-table(as.character(foo$class) == xs2$mode)
-
-foo$x %>%
-  as_tibble %>%
-  mutate(mode = xs2$mode) %>%
-  ggplot(aes(LD1, LD2, color = mode)) +
-  # geom_point(alpha = 0.7) +
-  geom_density_2d() +
+xs %>%
+  # filter(mode == 'High aln. seq. recalling') %>%
+  filter(`Alignment power %` >= 10) %>%
+  # filter(Bifurcations >= 1) %>%
+  ggplot(aes(`Fraction covarying bps %`, color = mode)) +
+  stat_ecdf(size = 1.2) +
+  scale_x_continuous(breaks = seq(0, 100, 10))  +
+  scale_y_continuous(breaks = seq(0, 1, .1)) +
+  ylab('Emp. cum. density') +
   scale_color_manual(
-    values = cbbPalette[c(1, 4, 6, 8, 7, 2)],
+    values = cbbPalette[c(1, 4, 3, 8, 7, 2)],
     name = NULL
   ) +
-  theme_bw(16)
+  geom_vline(xintercept = c(25), linetype = 'dashed') +
+  ggtitle('Min. alignement power 10%') +
+  theme_bw(16) +
+  theme(legend.position = 'bottom')
+  
+ggsave('foo3.jpeg', width = 8, height = 9)
+
+###############################################################################
+# Select candidate motifs
+
+xs %>%
+  filter(mode == 'High aln. seq. recalling') %>%
+  filter(`Alignment power %` >= 10) %>%
+  filter(`Fraction covarying bps %` >= 25) -> xs.cand
 
 ###############################################################################
 ###############################################################################
-
-
 ###############################################################################
+# List potential homologs for candidates
+# Use cmsearch screen to determine from minimal score of alignment sequence
+# a sort of gathering score
+
+
 cmsearch.motif.overlap %>%
+  semi_join(xs.cand, c('motif.x' = 'motif')) %>%
   filter(jacc > .99) %>%
   group_by(motif = motif.x) %>%
   summarize(min.seq.score = min(score)) %>%
@@ -382,12 +381,14 @@ cmsearch.motif.overlap %>%
 write_tsv(cutoff, out.cutoffs)
 
 ###############################################################################
+# Determine E-value cutoff
 
 cms %>%
   rename(motif = name) %>%
+  semi_join(xs.cand, 'motif') %>%
   left_join(
     cmsearch.motif.overlap %>%
-      filter(jacc > .99) %>%
+      filter(jacc == 1) %>%
       select(motif = motif.x, cms.row) %>%
       unique() %>%
       mutate(alignment.seq = TRUE),
@@ -397,59 +398,49 @@ cms %>%
   left_join(cutoff, 'motif') %>%
   drop_na -> cand
 
-cand %>%
-  ggplot(aes(score / min.seq.score, - log10(evalue))) +
-  geom_hex() +
-  scale_fill_viridis_c() +
-  xlab('ratio cmsearch hit score / \n max. motif alignment score') +
-  theme_bw(18) -> p2
 
-cmsearch.motif.overlap %>%
-  filter(jacc > .99) %>%
-  # pull(evalue) %>% summary
-  ggplot(aes(evalue)) +
-  geom_histogram(bins = 50) +
-  scale_x_log10(breaks = c(1e-40, 1e-20, 1e-10, .05)) +
+cand %>%
+  filter(score >= min.seq.score) %>%
+  mutate(grp = ifelse(alignment.seq, 'Alignemnt seq.', 'Potential additional hit')) %>%
+  ggplot(aes(evalue, color = grp)) +
+  stat_ecdf(size = 1.2) +
+  ggsci::scale_color_jama(name = NULL) +
+  scale_x_log10(breaks = c(1e-30, 1e-20, 1e-10, 1e-6, 1e-2, 1)) +
   xlab('max. E-value alignment score per motif') +
-  theme_bw(18) -> p3
+  scale_y_continuous(breaks = seq(0, 1, .1)) +
+  geom_vline(xintercept = 1, color = 'black') +
+  geom_vline(xintercept = .01, color = 'black', linetype = 'dashed') +
+  annotation_logticks(side = 'b') +
+  ylab('Emp. cum. density') +
+  theme_bw(18) +
+  theme(legend.position = 'bottom')
+
+ggsave('foo4.jpeg', width = 12, height = 8)
 
 ###############################################################################
+# List homologs
 
 cand %>%
   filter(score > min.seq.score) %>%
-  filter(evalue < .05) -> homologs
+  filter(evalue < .01) -> homologs
 
 write_tsv(homologs, out.homologs)
 
 ###############################################################################
+# A short figure on motifs per genome
 
-full_join(
-  homologs %>%
-    count(motif = name, tax_bio) %>%
-    group_by(motif) %>%
-    summarize(avg.homo = mean(n)),
-  motif.seqs %>%
-    count(motif) %>%
-    rename(no.seq = n),
-  'motif'
-) %>%
-  ggplot(aes(avg.homo)) +
+homologs %>%
+  select(motif, tax_bio) %>%
+  unique %>%
+  count(tax_bio) %>%
+  ggplot(aes(n)) +
   stat_ecdf() +
-  scale_x_log10() +
-  xlab('Average no. predicted homolog motifs per genome\nafterwith E-value 0.05 and motif score') +
-  annotation_logticks(sides = 'b') +
+  xlab('Motifs with at least one predicted homolog per genome') +
+  scale_x_continuous(breaks = seq(5, 70, 5)) +
   scale_y_continuous(breaks = seq(0, 1, .1)) +
   ylab('Cum. emp. density') +
-  theme_bw(18) -> p4
+  theme_bw(18)
 
-###############################################################################
-
-cowplot::plot_grid(
-  p1, p2, p3, p4,
-  labels = 'AUTO',
-  label_size = 18
-)
-
-ggsave(out.fig, width = 20, height = 12)
+ggsave('foo5.jpeg', width = 9, height = 8)
 
 ###############################################################################
