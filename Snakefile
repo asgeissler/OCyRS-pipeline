@@ -78,7 +78,7 @@ rule all:
         'data/J_motif-aln-seq-pos.tsv',
         'data/J_cmsearch-collected.tsv',
         # Determine score cutoffs and predict further homologs
-         'data/J_motif-homologs.tsv'
+        'data/J_motif-homologs.tsv'
         # TODO
         #'data/J_scoring.png'
 

@@ -7,13 +7,12 @@ library(furrr)
 
 library(corrplot)
 
-
 # in.cmsearch <- 'data/J_cmsearch-collected.tsv'
 # in.pos <- 'data/J_motif-aln-seq-pos.tsv'
 # in.fdr <- 'data/I_fdr.tsv'
 # in.scores <- 'data/H_scores.tsv'
 # in.cmstat <- 'data/I_cmstat.tsv'
-in.cmsearch <- unlist(snakemake@input[['collected']])
+in.cmsearch <- unlist(snakemake@input[['cmsearch']])
 in.pos <- unlist(snakemake@input[['pos']])
 in.fdr <- unlist(snakemake@input[['fdr']])
 in.scores <- unlist(snakemake@input[['scores']])
@@ -84,8 +83,6 @@ cms %>%
 ###############################################################################
 # No. sequences in motifs
 
-# motif.seqs <- read_tsv(in.seq)
-  
 motif.seqs.pos %>%
   count(motif, name = 'no.seq') -> no.seq
 
