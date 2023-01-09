@@ -117,5 +117,5 @@ J_seq_pos:
 
 J_homologs:
     cpus: 16
-    mem: 8GB
-    time: 0-01:00:00
+    mem: 32GB
+    time: 0-02:00:00
