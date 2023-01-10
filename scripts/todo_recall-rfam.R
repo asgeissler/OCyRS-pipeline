@@ -1,48 +1,46 @@
 # Purpose:
-# Check for overlaps between motif homologs and Rfam hits.
-# Check for recall of Rfam families also relative to motif scores.
-# Use difference in score densities of recalling motifs and random
-# background to select candidate motifs
+# Check for overlaps between motif homologs and cmsearch hits of
+# (A) bacterial Rfam
+# (B) RNIE terminator predictions
+# Also, relate recall rates to motif score metriccs
 
 library(tidyverse)
+library(tidygraph)
 
 in.rfam <- 'data/G_rfam-cmsearch.tsv.gz'
-in.motifs <- 'data/J_motif-homologs.tsv'
-in.scores <- 'data/I_fdr.tsv'
-in.all.scores <- 'data/H_scores.tsv'
+in.term <- 'data/G2_terminators.tsv.gz'
+in.homologs <- 'data/J_motif-homologs.tsv'
+
+in.fdr <- 'data/I_fdr.tsv'
+in.scores <- 'data/H_scores.tsv'
 
 ################################################################################
 # Load data
+
 rfam <- read_tsv(in.rfam)
-motifs <- read_tsv(in.motifs)
+term <- read_tsv(in.term)
+homologs <- read_tsv(in.homologs)
+fdr <- read_tsv(in.fdr)
 scores <- read_tsv(in.scores)
-all.scores <- read_tsv(in.all.scores)
 
 
 ################################################################################
 # as genomic range
-rfam %>%
-  select(
-    seqnames = chr,
-    start, end, strand,
-    rf, name
-  ) %>%
-  mutate(
-    tmp = start,
-    start = ifelse(start < end, start, end),
-    end = ifelse(tmp < end, end, tmp)
-  ) %>%
-  select(- tmp) %>%
-  plyranges::as_granges() %>%
-  mutate(rfam.len = IRanges::width(.)) -> rfam.range
 
-motifs %>%
-  select(
-    seqnames = tax.bio.chr,
-    start, end, strand,
-    motif = name, score, evalue,
-    motif.score.cutoff = min.seq.score
-  ) %>%
+list(
+  'RNIE terminator' = term %>%
+    select(- tax_bio, - gc),
+  Rfam = rfam %>%
+    select(- tax_bio, - gc) %>%
+    rename(name = rf, rfam = name),
+  'CMfinder motif' = homologs %>%
+    rename(chr = tax.bio.chr, name = motif) %>%
+    select(- c(tax_bio, gc, cms.row))
+) %>%
+  map2(names(.), ~ mutate(.x, type = .y)) %>%
+  bind_rows() %>%
+  mutate(row = 1:n()) %>%
+  rename(seqnames = chr) %>%
   mutate(
     tmp = start,
     start = ifelse(start < end, start, end),
@@ -50,50 +48,164 @@ motifs %>%
   ) %>%
   select(- tmp) %>%
   plyranges::as_granges() %>%
-  mutate(motif.len = IRanges::width(.)) -> motif.range
+  mutate(len = IRanges::width(.)) -> ranges
 
 ################################################################################
-# check for overlaps
+# check for overlaps all overlaps (also considering anti-sense)
 
-plyranges::join_overlap_intersect_directed(
-  motif.range,
-  rfam.range
-) %>%
+ranges %>%
+  mutate(strand2 = strand) %>%
+  plyranges::join_overlap_intersect(., .) %>%
+  # Exclude overlap with itself
+  filter(row.x != row.y) %>%
+  # Some helpful stats
   mutate(
-    shared = IRanges::width(.),
-    jaccard = shared / (motif.len + rfam.len - shared),
-    shared.rel = shared / motif.len
-  ) -> over
+    overlap = IRanges::width(.),
+    jaccard = overlap / (len.x + len.y - overlap),
+    x.rel = overlap / len.x,
+    y.rel = overlap / len.y,
+    orientation = ifelse(
+      strand2.x == strand2.y,
+      'sense',
+      'anti-sense'
+    )
+  ) %>%
+  as_tibble() -> overlaps
 
-over %>%
-  as_tibble() %>%
-  ggplot(aes(jaccard)) +
-  stat_ecdf()
-  ggplot(aes(shared.rel)) +
-  stat_ecdf() +
-  scale_x_continuous(breaks = seq(0, 1, .1)) +
+################################################################################
+# First, filter out overlaps between rfam hits etc
+
+overlaps %>%
+  filter(row.x < row.y, type.x == type.y) -> over.type
+
+over.type %>%
+  # ggplot(aes(jaccard, color = orientation)) +
+  ggplot(aes(overlap, color = orientation)) +
+  annotation_logticks(
+    sides = 'b',
+    short = unit(0.5, "cm"),
+    mid = unit(0.8, "cm"),
+    long = unit(1, "cm"),
+  ) +
+  scale_x_log10(minor_breaks = FALSE) +
+  stat_ecdf(size = 1.2) +
+  ggsci::scale_color_jama() +
+  geom_vline(xintercept = 20, color = 'blue') +
+  # geom_vline(xintercept = 40, color = 'red') +
+  # scale_x_continuous(breaks = seq(0, 1, .1)) +
   scale_y_continuous(breaks = seq(0, 1, .1)) +
-  geom_vline(xintercept = .5, color = 'red') +
-  xlab('Rfam hit - motif cmsearch overlap\nrel. to motif hit length') +
+  xlab('Overlap between cmsearch hits [bps]') +
   ylab('Emp. cum. density') +
-  theme_bw(18)
+  facet_wrap( ~ type.x) +
+  theme_bw(18) +
+  theme(legend.position = 'bottom')
 
-over %>%
-  as_tibble() %>%
-  View
-  nrow
-  ggplot(aes(shared.rel, shared)) +
-  geom_point(alpha = 0.7) +
-  scale_x_continuous(breaks = seq(0, 1, .1)) +
-  annotation_logticks(sides = 'l') +
-  scale_y_log10() +
-  # scale_y_continuous(breaks = seq(0, 1, .1)) +
-  geom_vline(xintercept = .5, color = 'red') +
-  geom_hline(yintercept = 20, color = 'blue') +
-  xlab('Rfam hit - motif cmsearch overlap\nrel. to motif hit length') +
-  # ylab('Emp. cum. density') +
-  theme_bw(18)
+# Determine overlaps above cutoff
+over.type %>%
+  filter(overlap >= 20) %>%
+  select(from = row.x, to = row.y) %>%
+  mutate_all(as.character) -> es
   
+# Group of overlapping form graph
+tbl_graph(edges = es, directed = FALSE) %>%
+  activate(nodes) %>%
+  mutate(grp = group_components()) %>%
+  as_tibble %>%
+  mutate(row = as.integer(name)) %>%
+  left_join(as_tibble(ranges), 'row') -> overlapping.hits
+
+# Min e-value of overlapping group
+overlapping.hits %>%
+  group_by(grp) %>%
+  summarize(min.e = min(evalue)) %>%
+  ungroup %>%
+  # In order to resolve ties, also choose max score
+  left_join(overlapping.hits, 'grp') %>%
+  filter(min.e == evalue) %>%
+  group_by(grp, min.e) %>%
+  summarize(max.score = max(score)) %>%
+  ungroup %>%
+  # Those with larger evalue than min per group are to be excluded
+  left_join(overlapping.hits, 'grp') %>%
+  filter( (min.e < evalue) | (score < max.score) ) %>%
+  select(row) %>%
+  unique -> to.exclude
+
+ranges %>%
+  filter(! (row %in% to.exclude$row)) -> ranges.nonredundant
+
+overlaps %>%
+  anti_join(to.exclude, c('row.x' = 'row')) %>%
+  anti_join(to.exclude, c('row.y' = 'row')) -> overlaps.nonredundant
+
+# length(ranges.nonredundant) / length(ranges)
+# nrow(overlaps.nonredundant) / nrow(overlaps)
+  
+################################################################################
+# Overlap in non-redundant set ahead of recall
+
+overlaps.nonredundant %>%
+  filter(
+    # row.x < row.y,
+    type.x == 'CMfinder motif',
+    type.x != type.y
+  ) -> over.between
+  # filter(row.x < row.y, type.x != type.y) -> over.between
+  # filter(row.x < row.y) -> over.between
+
+over.between %>%
+  ggplot(aes(overlap, color = orientation)) +
+  stat_ecdf(size = 1.2) +
+  ggsci::scale_color_jama() +
+  # scale_x_continuous(breaks = c(seq(0, 50, 10), 100, 150)) +
+  scale_x_log10(breaks = c(1, 5, 10, 50, 100, 150)) +
+  annotation_logticks(sides = 'b') +
+  scale_y_continuous(breaks = seq(0, 1, .1)) +
+  geom_vline(xintercept = 20, color = 'blue') +
+  xlab('Overlap between cmsearch hits [bps]') +
+  ylab('Emp. cum. density') +
+  facet_wrap( ~ type.y) +
+  theme_bw(18) +
+  theme(legend.position = 'bottom')
+
+################################################################################
+
+ranges.nonredundant %>%
+  as_tibble() %>%
+  count(name, type, name = 'no.seqs') -> no.seq
+
+
+over.between %>%
+  filter(overlap >= 20) %>%
+  count(rfam.y)
+  mutate(
+    type = case_when(
+      type.y == 'RNIE terminator' ~ 'RNIE terminator',
+      rfam.y
+    )
+  )
+  View
+  head
+  select(motif = name.x, type, name = name.y) %>%
+  head
+  count(motif, type, name, name = 'no.recall') %>%
+  left_join(
+    select(no.seq, motif = name, motif.homologs = no.seqs),
+    'motif'
+  ) %>%
+  left_join(no.seq, c('name', 'type')) %>%
+  mutate(
+    recall = no.recall / no.seqs,
+    precision = no.recall / motif.homologs,
+    F1 = 2 * no.recall / ( 2 * no.recall + (no.seqs - no.recall) + (motif.homologs - no.recall))
+  ) %>%
+  ggplot(aes(recall, precision)) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10() +
+  annotation_logticks() +
+  facet_wrap(~ type)
+
 ################################################################################
 
 over %>%
