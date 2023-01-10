@@ -337,7 +337,7 @@ xs %>%
 xs.ord <- corrplot::corrMatOrder(xs.cor, 'hclust')
 xs.cor <- xs.cor[xs.ord, xs.ord]
 
-jpeg(out.fig.cor, width = 3000, height = 3000, res = 400)
+jpeg(out.fig.cor, width = 3400, height = 3400, res = 400)
 corrplot(
   xs.cor,
   order = 'hclust',
@@ -441,8 +441,8 @@ ggsave(out.fig.eval, width = 12, height = 8)
 # List homologs
 
 cand %>%
-  filter(score > min.seq.score) %>%
-  filter(evalue < .01) -> homologs
+  filter(score >= min.seq.score) %>%
+  filter(evalue <= .01) -> homologs
 
 write_tsv(homologs, out.homologs)
 
