@@ -14,6 +14,11 @@ in.homologs <- 'data/J_motif-homologs.tsv'
 in.fdr <- 'data/I_fdr.tsv'
 in.scores <- 'data/H_scores.tsv'
 
+# Colorblind-friendly palettes of the Color Universal Design
+# https://riptutorial.com/r/example/28354/colorblind-friendly-palettes
+cbbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
+                "#0072B2", "#D55E00", "#CC79A7")
+
 ################################################################################
 # Load data
 
@@ -78,6 +83,8 @@ ranges %>%
 overlaps %>%
   filter(row.x < row.y, type.x == type.y) -> over.type
 
+cutoff.redundant <- 20
+
 over.type %>%
   # ggplot(aes(jaccard, color = orientation)) +
   ggplot(aes(overlap, color = orientation)) +
@@ -90,7 +97,7 @@ over.type %>%
   scale_x_log10(minor_breaks = FALSE) +
   stat_ecdf(size = 1.2) +
   ggsci::scale_color_jama() +
-  geom_vline(xintercept = 20, color = 'blue') +
+  geom_vline(xintercept = cutoff.redundant, color = 'blue') +
   # geom_vline(xintercept = 40, color = 'red') +
   # scale_x_continuous(breaks = seq(0, 1, .1)) +
   scale_y_continuous(breaks = seq(0, 1, .1)) +
@@ -100,9 +107,11 @@ over.type %>%
   theme_bw(18) +
   theme(legend.position = 'bottom')
 
+ggsave('foo1.jpeg', width = 12, height = 6, dpi = 500)
+
 # Determine overlaps above cutoff
 over.type %>%
-  filter(overlap >= 20) %>%
+  filter(overlap >= cutoff.redundant) %>%
   select(from = row.x, to = row.y) %>%
   mutate_all(as.character) -> es
   
@@ -140,18 +149,24 @@ overlaps %>%
 
 # length(ranges.nonredundant) / length(ranges)
 # nrow(overlaps.nonredundant) / nrow(overlaps)
+
+# Export non-redundant set
+ranges.nonredundant %>%
+  as_tibble() %>%
+  rename(tax.bio.chr = seqnames) %>%
+  select(- row, - len) %>%
+  write_tsv('foo.tsv.gz')
   
 ################################################################################
 # Overlap in non-redundant set ahead of recall
 
 overlaps.nonredundant %>%
   filter(
-    # row.x < row.y,
     type.x == 'CMfinder motif',
     type.x != type.y
   ) -> over.between
-  # filter(row.x < row.y, type.x != type.y) -> over.between
-  # filter(row.x < row.y) -> over.between
+
+cutoff.recall.overlap <- 5
 
 over.between %>%
   ggplot(aes(overlap, color = orientation)) +
@@ -161,12 +176,39 @@ over.between %>%
   scale_x_log10(breaks = c(1, 5, 10, 50, 100, 150)) +
   annotation_logticks(sides = 'b') +
   scale_y_continuous(breaks = seq(0, 1, .1)) +
-  geom_vline(xintercept = 20, color = 'blue') +
-  xlab('Overlap between cmsearch hits [bps]') +
+  geom_vline(xintercept = cutoff.recall.overlap, color = 'blue') +
+  xlab('Overlap with CMfinder motifs [bps]') +
   ylab('Emp. cum. density') +
   facet_wrap( ~ type.y) +
   theme_bw(18) +
   theme(legend.position = 'bottom')
+
+ggsave('foo2.jpeg', width = 12, height = 6, dpi = 500)
+
+################################################################################
+# Ahead of recall, query Rfam family types for more informative plots
+
+'https://raw.githubusercontent.com/Rfam/rfam-taxonomy/master/domains/bacteria.csv' %>%
+  read_csv() %>%
+  select(Family, Name = `Rfam ID`, type = `RNA type`) -> rfam.types
+
+keep.type <- c('Cis-reg', 'antisense', 'CRISPR', 'ribozyme', 'rRNA', 'tRNA', 'sRNA')
+
+rfam.types %>%
+  mutate(
+    type2 = type %>%
+      map(function(i) {
+        keep.type %>%
+          map(~ str_detect(i, .x)) %>%
+          unlist %>%
+          which %>%
+          first -> i
+        keep.type[i]
+      }) %>%
+      unlist
+  ) %>%
+  mutate_at('type2', replace_na, 'other') %>%
+  rename(type.full = type, type = type2) -> rfam.types
 
 ################################################################################
 
@@ -176,19 +218,18 @@ ranges.nonredundant %>%
 
 
 over.between %>%
-  filter(overlap >= 20) %>%
-  count(rfam.y)
+  filter(overlap >= cutoff.recall.overlap) %>%
+  left_join(rfam.types, c('name.y' = 'Family')) %>%
+  # count(rfam.y) %>%
+  # arrange(desc(n))
   mutate(
-    type = case_when(
+    type2 = case_when(
       type.y == 'RNIE terminator' ~ 'RNIE terminator',
-      rfam.y
+      TRUE ~ paste('Rfam', type)
     )
-  )
-  View
-  head
-  select(motif = name.x, type, name = name.y) %>%
-  head
-  count(motif, type, name, name = 'no.recall') %>%
+  ) %>%
+  select(motif = name.x, type = type.y, type2, name = name.y) %>%
+  count(motif, type, type2, name, name = 'no.recall') %>%
   left_join(
     select(no.seq, motif = name, motif.homologs = no.seqs),
     'motif'
@@ -198,116 +239,64 @@ over.between %>%
     recall = no.recall / no.seqs,
     precision = no.recall / motif.homologs,
     F1 = 2 * no.recall / ( 2 * no.recall + (no.seqs - no.recall) + (motif.homologs - no.recall))
-  ) %>%
-  ggplot(aes(recall, precision)) +
-  geom_point() +
+  ) -> over.stat
+over.stat %>%
+  ggplot(aes(recall, precision, color = type2)) +
+  # ggsci::scale_color_jco(name = NULL) +
+  scale_color_manual(values = cbbPalette, name = NULL) +
+  geom_point(size = 3, alpha = 0.7) +
   scale_x_log10() +
   scale_y_log10() +
+  xlab('recall (overlapping motifs rel. to\nno. RNIE/Rfam model hits)') +
+  ylab('precision (overlapping motifs\nrel. to no. motif homologs') +
   annotation_logticks() +
-  facet_wrap(~ type)
-
-################################################################################
-
-over %>%
-  filter(shared.rel > .5) %>%
-  as_tibble() %>%
-  count(motif, rf, name, name = 'recalled') %>%
-  left_join(
-    motifs %>%
-      count(motif = name, name = 'motif.pos'),
-    'motif'
-  ) %>%
-  left_join(
-    rfam %>%
-      count(rf, name = 'rfam.pos'),
-    'rf'
-  ) -> recalls
-
-recalls %>%
-  # ggplot(aes(recalled / rfam.pos, recalled / motif.pos)) +
-  # geom_point() +
-  ggplot(aes( recalled / rfam.pos * 100)) +
-  stat_ecdf() +
-  scale_x_continuous(breaks = seq(0, 100, 10)) +
-  scale_y_continuous(breaks = seq(0, 1, .1)) +
-  ylab('Cum. emp. density') +
-  xlab('% recall rfam hits') +
-  geom_vline(xintercept = 5, color = 'red') +
   theme_bw(18) +
-  ggtitle('Rfam-Motif recall', 'Motif hit overlaps > 50% of its length')
+  theme(legend.position = 'bottom') -> p
 
-recalls %>%
-  filter(recalled / rfam.pos * 100 > 5) %>%
-  count(rf, name, name = 'No. motifs recalling > 5% of Rfam hits') %>%
-  arrange(desc(`No. motifs recalling > 5% of Rfam hits`))
+p <- ggExtra::ggMarginal(p, type = 'histogram')
+ggsave('foo3.jpeg', plot = p, width = 10, height = 10, dpi = 500)
 
-recalls %>%
-  filter(recalled / rfam.pos * 100 > 5) %>%
+################################################################################
+# Select the potential novel homologs
+
+
+no.seq %>%
+  filter(type == 'CMfinder motif') %>%
+  select(- type) %>%
+  rename(motif = name) %>%
+  anti_join(over.stat, 'motif') -> potential.novel
+
+################################################################################
+# Compare KEGG terms, associated pathways when comparing only the
+# alignment sequences or also additional homologs
+
+'https://rest.kegg.jp/link/pathway/ko' %>%
+  read_tsv(col_names = c('ko', 'path')) %>%
+  filter(str_detect(path, 'map')) %>%
+  mutate_at('ko', str_remove, '^ko:') %>%
+  mutate_at('path', str_remove, '^path:') -> ko.path
+
+'data/A_representatives/kegg.tsv.gz' %>%
+  read_tsv() -> gene.kegg
+
+
+'data/A_representatives/genes.tsv.gz' %>%
+  read_tsv() -> genes
+
+
+################################################################################
+
+potential.novel %>%
+  left_join(homologs, 'motif') %>%
+  filter(str_detect(tax.bio.chr, '^32049')) %>%
+  select(motif, tax.bio.chr, start, end, strand, alignment.seq)
+
+potential.novel %>%
+  left_join(homologs, 'motif') %>%
+  filter(str_detect(tax.bio.chr, '^32049')) %>%
   select(motif) %>%
-  unique %>%
-  nrow
+  left_join(fdr, 'motif')
 
-################################################################################
-scores %>%
-  filter(RNAphylo.fdr <= 10) %>%
-  transmute(
-    motif,
-    'log10 RNAphylo' = log10(RNAphylo),
-    hmmpair,
-    #RNAphylo.fdr, hmmpair, fraction.paired,
-    alignment.power, fraction.covarying
-  ) %>%
-  left_join(
-    recalls %>%
-      filter(recalled / rfam.pos * 100 > 5) %>%
-      select(motif) %>%
-      unique %>%
-      mutate(with.recall = TRUE),
-    'motif'
-  ) %>%
-  mutate_at('with.recall', replace_na, FALSE) %>%
-  gather('key', 'value', - c(motif, with.recall)) %>%
-  ggplot(aes(value, color = with.recall)) +
-  stat_ecdf() +
-  ggsci::scale_color_jama() +
-  scale_y_continuous(breaks = seq(0, 1, .1)) +
-  ylab('Cum. emp. density') +
-  xlab('score value') +
-  facet_wrap(~ key, scales = 'free', ncol = 1) +
-  theme_bw(18) +
-  theme(legend.position = 'bottom')
-  
-################################################################################
 
 ################################################################################
 
-all.scores %>%
-  transmute(
-    motif,
-    dir = case_when(
-      dir == 'D_search-seqs' ~ 'CMfinder',
-      str_starts(dir, 'E_search-shuffled_seed') ~ 'Random CMfinder',
-      dir == 'G_rfam-bacteria-seeds' ~ 'Rfam'
-    ),
-    logRNAphylo = log10(RNAphylo),
-    log.hmmpair = log10(hmmpair),
-    log.no.seq = log10(nseq),
-    log.alignment.len = log10(alen),
-    avgid,
-    log.nbpairs = log10(nbpairs),
-    fraction.paired = nbpairs / alen * 100,
-    alignment.power = expected / nbpairs * 100,
-    fraction.covarying = observed / nbpairs * 100
-  ) -> foo
-  
-scores %>% 
-  # TODO 10 from config
-  filter(RNAphylo.fdr <= 10) %>%
-  select(motif) %>%
-  left_join(foo, 'motif') %>%
-  mutate(dir = 'CMFinder, FDR≤10%') %>%
-  bind_rows(foo) -> bar
-bar %>%
-  drop_na %>%
-  select(- motif) %>%
-  GGally::ggpairs(aes(color = dir))
