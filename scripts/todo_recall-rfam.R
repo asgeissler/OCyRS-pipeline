@@ -266,22 +266,107 @@ no.seq %>%
   rename(motif = name) %>%
   anti_join(over.stat, 'motif') -> potential.novel
 
+
+ranges.nonredundant %>%
+  filter(type == 'CMfinder motif') %>%
+  filter(name %in% potential.novel$motif) %>%
+  select(- type, - rfam) -> potential.novel.ranges
+
 ################################################################################
 # Compare KEGG terms, associated pathways when comparing only the
 # alignment sequences or also additional homologs
 
+# Questions of interest:
+# 1. Pathways associated via KO number
+# 2. Pathways associated for genes +/- 500 bp away to include sequence homologs
+# 3. When encluding cmsearch predicted homologs
+
+# Q1
 'https://rest.kegg.jp/link/pathway/ko' %>%
   read_tsv(col_names = c('ko', 'path')) %>%
   filter(str_detect(path, 'map')) %>%
   mutate_at('ko', str_remove, '^ko:') %>%
   mutate_at('path', str_remove, '^path:') -> ko.path
 
+'https://rest.kegg.jp/list/pathway' %>%
+  read_tsv(col_names = c('path', 'path_name')) %>%
+  filter(str_detect(path, 'map')) %>%
+  mutate_at('path', str_remove, '^path:') -> path.names
+
+potential.novel %>%
+  mutate(ko = str_remove(motif, '_.*$')) %>%
+  left_join(ko.path, 'ko') %>%
+  left_join(path.names, 'path') %>%
+  select(path, path_name, motif) %>%
+  unique %>%
+  drop_na %>%
+  count(
+    path, path_name,
+    name = 'Motifs associated via CMfinder search anchor'
+  ) -> q1
+
+
+# Q2
+
 'data/A_representatives/kegg.tsv.gz' %>%
   read_tsv() -> gene.kegg
 
-
 'data/A_representatives/genes.tsv.gz' %>%
   read_tsv() -> genes
+
+# search in +/- 500
+genes %>%
+  select(
+    seqnames = tax.bio.chr,
+    start, end, strand,
+    tax.bio.gene
+  ) %>%
+  plyranges::as_granges() %>%
+  mutate(
+    start = start - 500,
+    end = end + 500
+  ) -> genes500
+  
+# check overlaps
+genes500 %>%
+  plyranges::join_overlap_intersect(potential.novel.ranges) %>%
+  as_tibble() -> genes500.novel.over
+
+
+genes500.novel.over %>%
+  select(tax.bio.gene, motif = name, alignment.seq) %>%
+  filter(alignment.seq) %>%
+  left_join(gene.kegg, 'tax.bio.gene') %>%
+  filter(db == 'pathway') %>%
+  select(motif, path = term, path_name = title) %>%
+  unique %>%
+  drop_na %>%
+  count(
+    path, path_name,
+    name = 'Motifs with align. seq. near genes'
+  ) -> q2
+
+# Q3, repeated but without the alignment.seq filter
+genes500.novel.over %>%
+  select(tax.bio.gene, motif = name, alignment.seq) %>%
+  # filter(alignment.seq) %>% ##################### diff. to Q2
+  left_join(gene.kegg, 'tax.bio.gene') %>%
+  filter(db == 'pathway') %>%
+  select(motif, path = term, path_name = title) %>%
+  unique %>%
+  drop_na %>%
+  count(
+    path, path_name,
+    name = 'Motifs when incl. cmsearch homologs'
+  ) -> q3
+
+
+list(q1, q2, q3) %>%
+  reduce(full_join, by = c('path', 'path_name')) %>%
+  View
+
+### Why does the number decrease for map00543?
+'map00543'
 
 
 ################################################################################
