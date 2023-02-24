@@ -256,6 +256,18 @@ over.stat %>%
 p <- ggExtra::ggMarginal(p, type = 'histogram')
 ggsave('foo3.jpeg', plot = p, width = 10, height = 10, dpi = 500)
 
+
+###
+
+ns <- sprintf('Overlapping RNA structure motifs (≥ %g bp)', cutoff.recall.overlap)
+over.stat %>%
+  select(motif, type2) %>%
+  unique %>%
+  count(type2) %>%
+  arrange(desc(n)) %>%
+  rename(!! ns:= n) %>%
+  knitr::kable()
+
 ################################################################################
 # Select the potential novel homologs
 
@@ -334,12 +346,15 @@ genes500 %>%
 
 
 genes500.novel.over %>%
-  select(tax.bio.gene, motif = name, alignment.seq) %>%
-  filter(alignment.seq) %>%
   left_join(gene.kegg, 'tax.bio.gene') %>%
   filter(db == 'pathway') %>%
-  select(motif, path = term, path_name = title) %>%
-  unique %>%
+  select(
+    motif = name, tax.bio.gene, alignment.seq,
+    path = term, path_name = title
+  ) %>%
+  unique -> genes500.motif.path
+genes500.motif.path %>%
+  filter(alignment.seq) %>%
   drop_na %>%
   count(
     path, path_name,
@@ -347,13 +362,7 @@ genes500.novel.over %>%
   ) -> q2
 
 # Q3, repeated but without the alignment.seq filter
-genes500.novel.over %>%
-  select(tax.bio.gene, motif = name, alignment.seq) %>%
-  # filter(alignment.seq) %>% ##################### diff. to Q2
-  left_join(gene.kegg, 'tax.bio.gene') %>%
-  filter(db == 'pathway') %>%
-  select(motif, path = term, path_name = title) %>%
-  unique %>%
+genes500.motif.path %>%
   drop_na %>%
   count(
     path, path_name,
@@ -366,8 +375,18 @@ list(q1, q2, q3) %>%
   View
 
 ### Why does the number decrease for map00543?
-'map00543'
+potential.novel %>%
+  mutate(ko = str_remove(motif, '_.*$')) %>%
+  left_join(ko.path, 'ko') %>%
+  left_join(path.names, 'path') %>%
+  filter(path == 'map00543')
 
+gene.kegg %>%
+  filter(term == 'K19294') %>%
+  select(tax.bio.gene) %>%
+  left_join(gene.kegg) %>%
+  filter(term == 'map00543')
+# Problem: KEGG rest api lists KO-path associations not in proGenomes :*(
 
 ################################################################################
 

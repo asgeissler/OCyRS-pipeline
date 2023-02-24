@@ -5,8 +5,6 @@
 library(tidyverse)
 library(furrr)
 
-library(corrplot)
-
 # in.cmsearch <- 'data/J_cmsearch-collected.tsv'
 # in.pos <- 'data/J_motif-aln-seq-pos.tsv'
 # in.fdr <- 'data/I_fdr.tsv'
@@ -27,19 +25,17 @@ config.cutoff <- unlist(snakemake@config[['fdr_candidates']])
 # out.fig.jaccard <- 'data/J_overlaps.jpeg'
 # out.fig.boxplot <- 'data/J_score-boxplots.jpeg'
 # out.fig.cor <- 'data/J_score-cor.jpeg'
-# out.fig.powcov <- 'data/J_high-power-covariation.jpeg'
 # out.fig.eval <- 'data/J_eval.jpeg'
 # out.fig.homologs <- 'data/J_motif-homologs.jpeg'
 
+out.prop <- unlist(snakemake@output[['props']])
 out.cutoffs <- unlist(snakemake@output[['cutoffs']])
 out.homologs <- unlist(snakemake@output[['homologs']])
 
 out.fig.jaccard <- unlist(snakemake@output[['fig_jaccard']])
-out.fig.boxplot <- unlist(snakemake@output[['fig_boxplot']])
-out.fig.cor <-  unlist(snakemake@output[['fig_cor']])
-out.fig.powcov <- unlist(snakemake@output[['fig_powcov']])
 out.fig.eval <-  unlist(snakemake@output[['fig_eval']])
 out.fig.homologs <-  unlist(snakemake@output[['fig_homologs']])
+
 
 
 cpus <- as.integer(unlist(snakemake@threads))
@@ -125,7 +121,7 @@ cmsearch.motif.overlap %>%
   scale_x_continuous(breaks = seq(0, 1, .1)) +
   xlab('Jaccard similarity cmsearch hit\nand motif alignment seq. pos.') +
   scale_y_continuous(breaks = seq(0, 1, .1)) +
-  ylab('Cum. emp. density') +
+  ylab('Empirical cumulative density') +
   theme_bw(18) -> p1
 
 ###############################################################################
@@ -212,187 +208,77 @@ ggsave(out.fig.jaccard,
        scale = 0.8)
 
 ###############################################################################
-# Compare distribution of scores to substantiate selection by
-# alignment sequence recall
+# Save out the alignment sequence recall, but do not filter here
 
-scores <- read_tsv(in.scores)
-cmstat <- read_tsv(in.cmstat)
-
-scores %>%
-  mutate(
-    mode = case_when(
-      dir == 'D_search-seqs' ~ 'CMfinder',
-      dir == 'G_rfam-bacteria-seeds' ~ 'Rfam',
-      TRUE ~ 'Background'
-    )
-  ) -> qual
-
-bind_rows(
-  qual %>%
-    filter(mode != 'CMfinder') %>%
-    # prevent mixing background motifs with cmstat
-    mutate(motif = ifelse(
-      mode == 'Background',
-      paste0('bg', motif),
-      motif
-    )),
-  qual %>%
-    filter(mode == 'CMfinder') %>%
-    anti_join(dat, 'motif') %>%
-    mutate(mode = sprintf('FDR >%g%%', config.cutoff)),
-  # qual %>%
-  #   semi_join(dat, 'motif') %>%
-  #   mutate(mode = sprintf('FDR ≤%g%%', config.cutoff)),
-  qual %>%
-    semi_join(
-      dat %>%
-        filter(prop >= dat.prop.cutoff) %>%
-        select(motif),
-      'motif'
-    ) %>%
-    mutate(mode = 'High aln. seq. recalling'),
-  qual %>%
-    semi_join(
-      dat %>%
-        filter(prop < dat.prop.cutoff) %>%
-        filter(prop >= 50) %>%
-        select(motif),
-    ) %>%
-    mutate(mode = 'Med. aln. seq. recalling'),
-  qual %>%
-    semi_join(
-      dat %>%
-        filter(prop < 50) %>%
-        select(motif),
-    ) %>%
-    mutate(mode = 'Low aln. seq. recalling')
-) %>%
-  # pull(mode) %>% unique %>% dput
-  mutate_at(
-    'mode', fct_relevel,
-    "Background",
-    'FDR >10%',
-    # 'CMfinder',
-    # "FDR ≤10%",
-    "Low aln. seq. recalling",
-    "Med. aln. seq. recalling",
-    "High aln. seq. recalling",
-    "Rfam"
+dat %>%
+  select(
+    motif,
+    'no.alignment.seqs' = no.seq,
+    'no.cmsearch.found' = seq.recalled,
+    'recalled.proportion' = prop
   ) %>%
-  left_join(cmstat, 'motif') %>%
+  write_tsv(out.prop)
+
+###############################################################################
+# Ongoing for stefan question
+
+dat %>%
+  left_join(filter(scores, dir == 'D_search-seqs'), 'motif') %>%
   transmute(
-    mode, motif,
-    # CMfinder pipeline stats
-    'Length, log' = log10(alen + 1),
-    'Sequences, log' = log10(nseq.x + 1),
-    'RNAphylo, log' = log10(RNAphylo + 1),
-    'hmmpair, log' = log10(hmmpair + 1),
-    # Ratios
-    # 'RNAphylo-Length, log-ratio' = `RNAphylo, log` / `Length, log`,
-    # 'RNAphylo-Sequences, log-ratio' = `RNAphylo, log` / `Sequences, log`,
-    # R-Scape
-    'Avg. seq. id %' = avgid,
-    'Fraction paired positions %' = 2 * nbpairs / alen * 100,
-    'Alignment power %' = expected / nbpairs * 100,
-    'Fraction covarying bps %' = observed / nbpairs * 100,
-    # CMstat
-    # consensus_residues_len, expected_max_hit_len,
-    Bifurcations = bifurcations,
-    'Rel. entropy CM' = rel_entropy_cm,
-    'Rel. entropy hmm' =  rel_entropy_hmm
-  ) -> xs
-
-
-xs %>%
-  gather('k', 'value', - c(mode, motif)) %>%
-  ggplot(aes(mode, value, fill = mode)) +
+    motif,
+    prop = cut(
+      prop,
+      c(0, 50, 90, 100),
+      include.lowest = TRUE
+    ),
+    # 'log10(RNAphylo)' = log10(RNAphylo),
+    # 'log10(hmmpair)' = log10(hmmpair),
+    'no. sequences' = nseq,
+    'alignment length' = alen,
+    'no. bps' = nbpairs,
+    # 'significant co-variation' = observed
+  ) %>%
+  gather('score', 'value', - c(prop, motif)) %>%
+  ggplot(aes(prop, value)) +
   geom_boxplot() +
-  scale_fill_manual(
-    values = cbbPalette[c(1, 4, 3, 8, 7, 2)],
-    # values = cbbPalette,
-    name = NULL
-  ) +
-  xlab(NULL) +
-  ylab('Parameter value') +
-  # scale_y_continuous(breaks = seq(0, 1, .1)) +
-  facet_wrap(~ k, scales = 'free_y', ncol = 3) +
-  theme_bw(16) +
-  theme(
-    legend.position = 'bottom',
-    axis.text.x = element_text(angle = 60, hjust = 1)
-  )
-
-ggsave(out.fig.boxplot, width = 12, height = 16)
+  xlab('CMsearch recall of alignment sequences %') +
+  facet_wrap(~ score, scales = 'free_y')
 
 ###############################################################################
-# Show correlations between score metrics
-
-xs %>%
-  select(- c(motif, mode)) %>%
-  drop_na() %>%
-  cor -> xs.cor
-
-# Order of score variables
-# Do ahead of plot, such that the number coloration can be chosen
-xs.ord <- corrplot::corrMatOrder(xs.cor, 'hclust')
-xs.cor <- xs.cor[xs.ord, xs.ord]
-
-jpeg(out.fig.cor, width = 3400, height = 3400, res = 400)
-corrplot(
-  xs.cor,
-  order = 'hclust',
-  method = 'square',
-  type = 'upper',
-  col = COL2('RdYlBu'),
-  # addCoef.col = 'white',
-  addCoef.col = xs.cor[upper.tri(xs.cor, diag = TRUE)] %>%
-    abs %>%
-    map( ~ ifelse(.x > .5, 'white', 'black')) %>%
-    unlist
-)
-dev.off()
-
-###############################################################################
-# Argue via power cutoff for covariation cutoff
-
-xs %>%
-  # filter(mode == 'High aln. seq. recalling') %>%
-  filter(`Alignment power %` >= 10) %>%
-  # filter(Bifurcations >= 1) %>%
-  ggplot(aes(`Fraction covarying bps %`, color = mode)) +
+# Determine E-value cutoff before gathering cutoff (massivly inflated)
+cms %>%
+  left_join(
+    cmsearch.motif.overlap %>%
+      filter(jacc == 1) %>%
+      select(motif = motif.x, cms.row) %>%
+      unique() %>%
+      mutate(alignment.seq = TRUE),
+    c('name' = 'motif', 'cms.row')
+  ) %>%
+  mutate_at('alignment.seq', replace_na, FALSE) %>%
+  mutate(grp = ifelse(alignment.seq, 'Alignemnt seq.', 'Potential additional homolog')) %>%
+  ggplot(aes(evalue, color = grp)) +
   stat_ecdf(size = 1.2) +
-  scale_x_continuous(breaks = seq(0, 100, 10))  +
+  ggsci::scale_color_jama(name = NULL) +
+  # scale_x_log10(breaks = c(1e-60, 1e-30, 1e-10, 1e-6, 1e-2, 10)) +
+  scale_x_log10() +
+  xlab('CMsearch E-value for hits before filtering\n(log scaled axis)') +
   scale_y_continuous(breaks = seq(0, 1, .1)) +
-  ylab('Emp. cum. density') +
-  scale_color_manual(
-    values = cbbPalette[c(1, 4, 3, 8, 7, 2)],
-    name = NULL
-  ) +
-  geom_vline(xintercept = c(25), linetype = 'dashed') +
-  ggtitle('Min. alignement power 10%') +
-  theme_bw(16) +
+  # scale_y_log10() +
+  geom_vline(xintercept = .1, color = 'black', linetype = 'dashed') +
+  annotate('label', x = .1, y = 1, label = 'E=0.1') +
+  # annotation_logticks(side = 'b') +
+  ylab('Empirical cumulative density') +
+  theme_bw(18) +
   theme(legend.position = 'bottom')
-  
-ggsave(out.fig.powcov, width = 8, height = 9)
 
 ###############################################################################
-# Select candidate motifs
-
-xs %>%
-  filter(mode == 'High aln. seq. recalling') %>%
-  filter(`Alignment power %` >= 10) %>%
-  filter(`Fraction covarying bps %` >= 25) -> xs.cand
-
-###############################################################################
-###############################################################################
-###############################################################################
-# List potential homologs for candidates
+# List potential homologs for all FDR10% motifs
 # Use cmsearch screen to determine from minimal score of alignment sequence
 # a sort of gathering score
 
 
 cmsearch.motif.overlap %>%
-  semi_join(xs.cand, c('motif.x' = 'motif')) %>%
   filter(jacc == 1) %>%
   group_by(motif = motif.x) %>%
   summarize(min.seq.score = min(score)) %>%
@@ -401,11 +287,10 @@ cmsearch.motif.overlap %>%
 write_tsv(cutoff, out.cutoffs)
 
 ###############################################################################
-# Determine E-value cutoff
+
 
 cms %>%
   rename(motif = name) %>%
-  semi_join(xs.cand, 'motif') %>%
   left_join(
     cmsearch.motif.overlap %>%
       filter(jacc == 1) %>%
@@ -425,13 +310,15 @@ cand %>%
   ggplot(aes(evalue, color = grp)) +
   stat_ecdf(size = 1.2) +
   ggsci::scale_color_jama(name = NULL) +
-  scale_x_log10(breaks = c(1e-30, 1e-20, 1e-10, 1e-6, 1e-2, 1)) +
-  xlab('max. E-value alignment score per motif') +
+  # scale_x_log10(breaks = c(1e-30, 1e-20, 1e-10, 1e-6, 1e-2, 1)) +
+  scale_x_log10() +
+  xlab('CMsearch E-value for hits above motif gathering score\n(log scaled axis)') +
   scale_y_continuous(breaks = seq(0, 1, .1)) +
   geom_vline(xintercept = 1, color = 'black') +
-  geom_vline(xintercept = .01, color = 'black', linetype = 'dashed') +
-  annotation_logticks(side = 'b') +
-  ylab('Emp. cum. density') +
+  geom_vline(xintercept = c(0.01),
+             color = 'black', linetype = 'dashed') +
+  # annotation_logticks(side = 'b') +
+  ylab('Empirical cumulative density') +
   theme_bw(18) +
   theme(legend.position = 'bottom')
 
