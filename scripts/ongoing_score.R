@@ -1,11 +1,8 @@
-# Load sequences of motif hits
-# Check if these are part of the motif alignments
-# Determine per motif score cutoff
+# Inspect distibution of scores
+# Further classify by covariaiton and power
 
 library(tidyverse)
-library(patchwork)
-
-# library(corrplot)
+library(corrplot)
 
 # in.fdr <- 'data/I_fdr.tsv'
 # in.scores <- 'data/H_scores.tsv'
@@ -17,16 +14,25 @@ in.scores <- unlist(snakemake@input[['scores']])
 in.cmstat <- unlist(snakemake@input[['cmstat']])
 in.rfam <- unlist(snakemake@input[['rfam']])
 
+out.cor <- 'test.pdf'
+out.cut <- 'test1.png'
+out.dist <- 'test2.png'
 
 # out.cutoffs <- 'data/J_gathering-scores.tsv'
 
-# Colorblind-friendly palettes of the Color Universal Design
-# https://riptutorial.com/r/example/28354/colorblind-friendly-palettes
-cbbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
-                "#0072B2",
-                "#FF0000",
-                "#D55E00",
-                "#CC79A7")
+my.colors <- c(
+  "Background motifs" = "#000000",
+  "FDR > 10%" = "#999999",
+  "All biological motifs" = "#A6CEE3", 
+  "FDR ≤ 10%" = "#1F78B4",
+  'High power\n(low covaryation)' = "#B15928",
+  "Conserved sequence\n(low covaryation and power)" = "#FDBF6F",
+  'High covaryation' = "#FF7F00",
+  "Cyanobacterial Rfam" = "#6A3D9A",
+  "Bacterial Rfam" = "#CAB2D6"
+)
+# RColorBrewer::brewer.pal(15, 'Paired')
+# RColorBrewer::display.brewer.all()
 
 ###############################################################################
 # Load data
@@ -39,6 +45,8 @@ cmstat <- read_tsv(in.cmstat)
 ###############################################################################
 # Build up motif categories identified by motif-dir pairs
 
+# Start collecting categories, but in parts, such to interject
+# final catergories in "right place" for viz
 bind_rows(
   scores %>%
     filter(str_starts(dir, 'E_search-shuffled_')) %>%
@@ -64,61 +72,11 @@ bind_rows(
     mutate(
       dir = 'D_search-seqs',
       cat = 'FDR ≤ 10%'
-    ),
+    )
+) -> cats1
+
   
-  fdr %>%
-    filter(RNAphylo.fdr <= 10) %>%
-    select(motif) %>%
-    semi_join(
-      cmstat %>%
-        filter(!str_starts(motif, 'RF')) %>%
-        filter(bifurcations >= 1),
-        c('motif')
-    ) %>%
-    mutate(
-      dir = 'D_search-seqs',
-      cat = 'FDR ≤ 10% & ≥ 1 bifurcation'
-    ),
-  
-  fdr %>%
-    filter(RNAphylo.fdr <= 10) %>%
-    select(motif) %>%
-    semi_join(
-      scores %>%
-        filter(dir == 'D_search-seqs') %>%
-        filter(
-          # Either covaryation or power
-          ( expected / nbpairs * 100 > 10) |
-            ( observed / nbpairs * 100 > 10)
-        ),
-        c('motif')
-    ) %>%
-    mutate(
-      dir = 'D_search-seqs',
-      cat = 'FDR ≤ 10% & either power or\ncovarying ≥ 10%'
-    ),
-  
-  scores %>%
-    filter(dir == 'G_rfam-bacteria-seeds') %>%
-    select(motif, dir) %>%
-    semi_join(
-      rfam %>%
-        select(motif = rf) %>%
-        unique,
-      'motif'
-    ) %>%
-    semi_join(
-      scores %>%
-        filter(dir == 'G_rfam-bacteria-seeds') %>%
-        filter(
-          # Either covaryation or power
-          ( expected / nbpairs * 100 > 10) |
-            ( observed / nbpairs * 100 > 10)
-        ),
-        c('motif')
-    ) %>%
-    mutate(cat = 'Cyanobacterial Rfam & either power or\ncovarying ≥ 10%'),
-  
+bind_rows(
   scores %>%
     filter(dir == 'G_rfam-bacteria-seeds') %>%
     select(motif, dir) %>%
@@ -134,13 +92,13 @@ bind_rows(
     filter(dir == 'G_rfam-bacteria-seeds') %>%
     select(motif, dir) %>%
     mutate(cat = 'Bacterial Rfam')
-) -> cats
+) -> cats2
 
 
 ###############################################################################
 # Build one table of scores with prettier names
 
-scores %>%
+score.dat <- scores %>%
   left_join(
     cmstat %>%
       select(motif, bifurcations, rel_entropy_cm, rel_entropy_hmm) %>%
@@ -159,32 +117,121 @@ scores %>%
     'RNAphylo, log10' = log10(RNAphylo + 1),
     'hmmpair, log10' = log10(hmmpair + 1),
     # Ratio
-    'log10(RNAphylo / Length)' = log10(RNAphylo / alen),
+    # 'log10(RNAphylo / Length)' = log10(RNAphylo / alen),
     # R-Scape
-    'Avg. SI %' = avgid,
+    'Avgerage SI %' = avgid,
     'Paired positions %' = 2 * nbpairs / alen * 100,
     'Alignment power %' = expected / nbpairs * 100,
     'Covarying bps %' = observed / nbpairs * 100,
     # CMstat
     # consensus_residues_len, expected_max_hit_len,
-    Bifurcations = bifurcations,
-    'Rel. entropy CM' = rel_entropy_cm,
-    'Rel. entropy hmm' =  rel_entropy_hmm
-  ) -> score.dat
+    # Bifurcations = bifurcations,
+    # 'Rel. entropy CM' = rel_entropy_cm,
+    # 'Rel. entropy hmm' =  rel_entropy_hmm
+  )
+
+###############################################################################
+# Determine covariaton and power cutoffs
+
+
+bind_rows(cats1, cats2) %>%
+  # preserve order for plotting
+  mutate_at('cat', as_factor) %>%
+  left_join(score.dat, c('dir', 'motif')) %>%
+  select(
+    motif, dir, cat,
+    `Alignment power %`, `Covarying bps %`
+  ) %>%
+  gather('score', 'value', - c(dir, motif, cat)) %>%
+  ggplot(aes(value, color = cat)) +
+  stat_ecdf(size = 1.3) +
+  scale_color_manual(
+    values = my.colors[c(1, 2, 3, 4, 8, 9)],
+    name = NULL
+  ) +
+  xlab(NULL) +
+  ylab('Empirical cumulative density') +
+  scale_x_continuous(breaks = seq(0, 100, 10)) +
+  scale_y_continuous(breaks = seq(0, 1, .1)) +
+  # scale_y_continuous(breaks = seq(0, 1, .1)) +
+  facet_wrap(~ score, scales = 'free', strip.position = 'bottom') +
+  geom_vline(xintercept = 20, color = 'red') +
+  theme_bw(16) +
+  theme(
+    strip.placement = "outside",   # format to look like title
+    strip.background = element_blank()
+    # panel.grid.major.x = element_blank(),
+    # panel.grid.minor.x = element_blank(),
+    # legend.position = 'hide',
+    # axis.text.x = element_blank()
+  ) -> p.criteria
+
+###############################################################################
+# Create the 3 categories
+
+fdr %>%
+  filter(RNAphylo.fdr <= 10) %>%
+  select(motif) %>%
+  mutate(dir = 'D_search-seqs') %>%
+  left_join(
+    score.dat,
+    c('motif', 'dir')
+  ) -> fdr10
+
+# Build iterativly, but do not in
+fdr10 %>%
+  mutate(cls = case_when(
+    `Covarying bps %` >= 20 ~ 'High covaryation',
+    `Alignment power %` >= 20 ~ 'High power\n(low covaryation)',
+    TRUE ~ "Conserved sequence\n(low covaryation and power)"
+  )) %>%
+  select(motif, dir, cat = cls) %>%
+  mutate_at(
+    'cat', fct_relevel,
+    'High power\n(low covaryation)',
+    "Conserved sequence\n(low covaryation and power)",
+    'High covaryation'
+  ) %>%
+  arrange(cat) %>%
+  mutate_at('cat', as.character) -> cats3
+
+###############################################################################
+# Justification of selection due to correlation
+
+cats <- bind_rows(cats1, cats3, cats2)
+
+pdf(out.cor)
+cats %>%
+  filter(cat == 'FDR ≤ 10%') %>%
+  left_join(score.dat, c('dir', 'motif')) %>%
+  select(- c(motif, dir, cat))  %>%
+  # GGally::ggpairs()
+  cor %>%
+  corrplot(
+    method = 'square',
+    order = 'AOE',
+    type = 'lower',
+    diag = FALSE,
+    insig='blank',
+    addCoef.col ='black',
+    number.cex = 0.8
+  )
+dev.off()
 
 
 ###############################################################################
-# Bring togehter with categories for nices plots
+# Bring together with categories for nicer plots
 
 cats %>%
   # preserve order for plotting
   mutate_at('cat', as_factor) %>%
   left_join(score.dat, c('dir', 'motif')) %>%
   gather('score', 'value', - c(dir, motif, cat)) %>%
+  # ggplot(aes(str_remove(cat, '\\(.*\\)'), value, fill = cat)) +
   ggplot(aes(cat, value, fill = cat)) +
   geom_boxplot() +
   scale_fill_manual(
-    values = cbbPalette,
+    values = my.colors,
     name = NULL
   ) +
   xlab(NULL) +
@@ -196,8 +243,10 @@ cats %>%
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank(),
     legend.position = 'hide',
-    axis.text.x = element_blank()
+    # axis.text.x = element_blank()
+    axis.text.x = element_text(angle = 90, hjust = 1)
   ) -> p1
+
 
 cats %>%
   mutate_at('cat', as_factor) %>%
@@ -208,19 +257,41 @@ cats %>%
   geom_bar(stat = 'identity') +
   geom_text(nudge_y = 100) +
   scale_fill_manual(
-    values = cbbPalette,
+    values = my.colors,
     name = NULL
   ) +
   xlab(NULL) +
   ylab('No motifs or Rfam families') +
   theme_bw(16) +
-  guides(fill = guide_legend(nrow = 3, ncol = 3)) +
+  guides(fill = guide_legend(nrow = 2)) +
   theme(
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank(),
     legend.position = 'bottom',
-    axis.text.x = element_blank()
+    # axis.text.x = element_blank()
+    axis.text.x = element_text(angle = 90, hjust = 1)
   ) -> p2
 
-# p1 + p2
-cowplot::plot_grid(p1, p2)
+ggsave(out.cut, p.criteria,
+       width = 16, height = 8,
+       scale = 0.9,
+       dpi = 400)
+
+cowplot::plot_grid(
+  cowplot::plot_grid(
+    p1,
+    p2 + theme(legend.position = 'hide'),
+    labels = 'AUTO',
+    label_size = 18,
+    rows = 1
+  ),
+  cowplot::get_legend(p2),
+  rows = 2, rel_heights = c(5, 1)
+)
+
+
+ggsave(out.dist,
+       width = 18, height = 8,
+       bg = 'white',
+       scale = 1.1,
+       dpi = 400)
