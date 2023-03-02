@@ -119,7 +119,7 @@ cmsearch.motif.overlap %>%
   ggplot(aes(jacc)) +
   stat_ecdf() +
   scale_x_continuous(breaks = seq(0, 1, .1)) +
-  xlab('Jaccard similarity cmsearch hit\nand motif alignment seq. pos.') +
+  xlab('Jaccard similarity cmsearch hit\nand motif alignment sequence position') +
   scale_y_continuous(breaks = seq(0, 1, .1)) +
   ylab('Empirical cumulative density') +
   theme_bw(18) -> p1
