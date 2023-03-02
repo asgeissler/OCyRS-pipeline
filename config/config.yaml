@@ -11,4 +11,6 @@ rfamv: '14.8'
 # After CMfinder runs and FDR estimation, continue with
 # candidates for cmsearch etc with this cutoff
 fdr_candidates: 10
+# TODO  this parameter is still hard-coded in some of the scripts/*R for
+#       easier development, but maybe change before publication...
 
