@@ -2,6 +2,7 @@
 # Further classify by covariaiton and power
 
 library(tidyverse)
+library(patchwork)
 library(corrplot)
 
 # in.fdr <- 'data/I_fdr.tsv'
@@ -14,11 +15,15 @@ in.scores <- unlist(snakemake@input[['scores']])
 in.cmstat <- unlist(snakemake@input[['cmstat']])
 in.rfam <- unlist(snakemake@input[['rfam']])
 
-out.cor <- 'test.pdf'
-out.cut <- 'test1.png'
-out.dist <- 'test2.png'
+# out.cor <- 'test.pdf'
+# out.cut <- 'test1.png'
+# out.dist <- 'test2.png'
+# out.cats <- 'test2.tsv'
 
-# out.cutoffs <- 'data/J_gathering-scores.tsv'
+out.cor <- unlist(snakemake@input[['cor']])
+out.cut <- unlist(snakemake@input[['cut']])
+out.dist <- unlist(snakemake@input[['dist']])
+out.cats <- unlist(snakemake@input[['cats']])
 
 my.colors <- c(
   "Background motifs" = "#000000",
@@ -166,6 +171,11 @@ bind_rows(cats1, cats2) %>%
     # axis.text.x = element_blank()
   ) -> p.criteria
 
+ggsave(out.cut, p.criteria,
+       width = 16, height = 8,
+       scale = 0.9,
+       dpi = 400)
+
 ###############################################################################
 # Create the 3 categories
 
@@ -237,14 +247,15 @@ cats %>%
   xlab(NULL) +
   ylab(NULL) +
   # scale_y_continuous(breaks = seq(0, 1, .1)) +
-  facet_wrap(~ score, scales = 'free_y', ncol = 3) +
+  facet_wrap(~ score, scales = 'free_y', ncol = 4) +
+  # facet_wrap(~ score, scales = 'free_y') +
   theme_bw(16) +
   theme(
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank(),
     legend.position = 'hide',
-    # axis.text.x = element_blank()
-    axis.text.x = element_text(angle = 90, hjust = 1)
+    axis.text.x = element_blank()
+    # axis.text.x = element_text(angle = 90, hjust = 1)
   ) -> p1
 
 
@@ -261,37 +272,42 @@ cats %>%
     name = NULL
   ) +
   xlab(NULL) +
-  ylab('No motifs or Rfam families') +
+  ylab('No. motifs or\nRfam families') +
   theme_bw(16) +
-  guides(fill = guide_legend(nrow = 2)) +
+  # guides(fill = guide_legend(nrow = 3, size = 15)) +
   theme(
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank(),
     legend.position = 'bottom',
+    # legend.justification = c(0, 1),
     # axis.text.x = element_blank()
-    axis.text.x = element_text(angle = 90, hjust = 1)
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)
   ) -> p2
 
-ggsave(out.cut, p.criteria,
-       width = 16, height = 8,
-       scale = 0.9,
-       dpi = 400)
 
-cowplot::plot_grid(
-  cowplot::plot_grid(
-    p1,
-    p2 + theme(legend.position = 'hide'),
-    labels = 'AUTO',
-    label_size = 18,
-    rows = 1
-  ),
-  cowplot::get_legend(p2),
-  rows = 2, rel_heights = c(5, 1)
-)
+# cowplot::plot_grid(
+#   p1,
+#   p2,
+#   labels = 'AUTO',
+#   label_size = 18,
+#   cols = 1
+# )
 
+
+p1 / p2 +
+  plot_annotation(tag_levels = 'A')
 
 ggsave(out.dist,
-       width = 18, height = 8,
+       width = 14, height = 12,
        bg = 'white',
        scale = 1.1,
        dpi = 400)
+
+###############################################################################
+
+cats3 %>%
+  mutate_at('cat', str_replace, '\n', ' ') %>%
+  left_join(score.dat, c('dir', 'motif')) %>%
+  rename(category = cat) %>%
+  select(- dir) %>%
+  write_tsv(out.cats)
