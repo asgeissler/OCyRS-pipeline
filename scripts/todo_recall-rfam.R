@@ -10,6 +10,7 @@ library(tidygraph)
 in.rfam <- 'data/G_rfam-cmsearch.tsv.gz'
 in.term <- 'data/G2_terminators.tsv.gz'
 in.homologs <- 'data/J_motif-homologs.tsv'
+in.cats = 'data/J_FDR-categories.tsv'
 
 in.fdr <- 'data/I_fdr.tsv'
 in.scores <- 'data/H_scores.tsv'

@@ -1,5 +1,5 @@
-# Inspect distibution of scores
-# Further classify by covariaiton and power
+# Inspect distribution of scores
+# Further classify by variation and power
 
 library(tidyverse)
 library(patchwork)
