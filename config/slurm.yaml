@@ -7,21 +7,25 @@ __default__:
     output: 'slurmlogs/{rule}_$(date "+%Y-%m-%d_%H-%M-%S")_job%j.out.txt'
     error: 'slurmlogs/{rule}_$(date "+%Y-%m-%d_%H-%M-%S")_job%j.err.txt'
 
+
 A_checkm:
     cpus: 8
     mem: 40GB
 
+
 B_seqids:
     cpus: 8
 
+
 C_phylo:
-    cpus: 32 
+    cpus: 32
     mem: 20GB
     # Though most alignment phylogenetic trees can be computed < 2h
     # some can take fairly long even after alignment filtering.
-    # Thus, this limit is much higher than needed for most, just to avoit
+    # Thus, this limit is much higher than needed for most, just to avoid
     # any terminations due to the time limit
     time: 4-00:00:00
+
 
 # The pairwise distance on the 900+ trees really take some resources
 C_space:
@@ -29,10 +33,12 @@ C_space:
     mem: 40GB
     time: 08:00:00
 
+
 E_filter:
     cpus: 32
     mem: 40GB
     time: 02:00:00
+
 
 E_stat:
     cpus: 32
@@ -44,24 +50,28 @@ F_cmfinder:
     # from CMfinder help page: 
     #  (currently only the internal cmsearch commands in cmfinder04)
     #  => Most of the tool is single-core anyway
-    cpus: 1 
+    cpus: 1
     mem: 40GB
     time: 7-00:00:00
+
 
 G_cmsearch:
     cpus: 8
     mem: 8GB
     time: 0-04:00:00
 
+
 G_combine:
     cpus: 8
     mem: 16GB
     time: 0-04:00:00
 
+
 G2_cmsearch:
     cpus: 8
     mem: 8GB
     time: 0-00:30:00
+
 
 G2_combine:
     cpus: 8
@@ -75,15 +85,18 @@ H_pscore:
     cpus: 1
     mem: 8GB
 
+
 H_pscore2:
     time: 0-05:00:00
     cpus: 1
     mem: 8GB
 
+
 H_rscape:
     time: 0-05:00:00
     cpus: 1
     mem: 8GB
+
 
 rule H_combine:
     time: 0-01:00:00
@@ -91,14 +104,14 @@ rule H_combine:
     mem: 16GB
 
 
-
 I_build:
     time: 0-05:00:00
     cpus: 4
     mem: 8GB
 
+
 I_cmsearch:
-    time: 0-10:00:00
+    time: 2-00:00:00
     cpus: 4
     mem: 8GB
 
@@ -119,3 +132,5 @@ J_homologs:
     cpus: 16
     mem: 32GB
     time: 0-02:00:00
+
+

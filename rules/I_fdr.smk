@@ -44,6 +44,7 @@ rule I_build:
         mv $tmp {output}
         """
 
+
 # Compute stats for CM model
 rule I_cmstat:
     input:
@@ -56,7 +57,8 @@ rule I_cmstat:
         """
         cmstat {input} > {output}
         """
-#
+        
+
 # Compute stats for CM model of Rfam families
 rule I_cmstat_rfam:
     input:
@@ -69,6 +71,7 @@ rule I_cmstat_rfam:
         """
         cmstat {input} > {output}
         """
+
 
 rule I_cmstat_agg:
     input:
@@ -107,7 +110,7 @@ rule I_cmsearch:
         for cm in data/I_candidate-models/*/*.cm ; do
             echo $cm >> {log} 2>&1
             p="{output[0]}/$(basename $cm .cm).txt"
-            cmsearch --nohmmonly                \
+            cmsearch --max                      \
                 --tblout $p --cpu {threads}     \
                 $cm {input.genome} >> {log} 2>&1
         done
