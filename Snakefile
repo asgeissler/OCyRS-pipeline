@@ -72,17 +72,10 @@ rule all:
         'data/I_fdr.tsv',
         'data/I_candidate-models/done.cm',
         'data/I_cmstat.tsv',
-        'data/I_cmsearch/runs.done',
         # Categorize low FDR motifs by R-scape scores
         'data/J_FDR-categories.tsv',
-        # Collect cmsearch of motifs and collect positions of
-        # alignment sequences (by exact look up)
-        'data/J_motif-aln-seq-pos.tsv',
-        'data/J_cmsearch-collected.tsv',
-        # Determine score cutoffs and predict further homologs
-        'data/J_homologs/motif-homologs.tsv'
-        # TODO
-        #'data/J_scoring.png'
+        # Collect positions of # alignment sequences (by exact look up)
+        'data/J_motif-aln-seq-pos.tsv'
 
 
 

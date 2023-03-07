@@ -110,27 +110,8 @@ I_build:
     mem: 8GB
 
 
-I_cmsearch:
-    time: 2-00:00:00
-    cpus: 4
-    mem: 8GB
-
-
-J_collect:
-    cpus: 32
-    mem: 100GB
-    time: 0-05:00:00
-
-
 J_seq_pos:
     cpus: 16
     mem: 32GB
     time: 0-05:00:00
-
-
-J_homologs:
-    cpus: 16
-    mem: 32GB
-    time: 0-02:00:00
-
 

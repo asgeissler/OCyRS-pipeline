@@ -91,37 +91,3 @@ rule I_build_cands:
     output:
         touch('data/I_candidate-models/done.cm')
 
-
-# similar to G_cmsearch, but this time search for candidates
-# Also, there is no gathering score to use
-rule I_cmsearch:
-    input:
-        flag = 'data/I_candidate-models/done.cm',
-        genome = 'data/A_representatives/{tax_bio}/genome.fna.gz'
-    output:
-        directory('data/I_cmsearch/{tax_bio}'),
-        'data/I_cmsearch/{tax_bio}/run.done'
-    log: 'snakelogs/I_rfam/{tax_bio}.txt'
-    container: 'infernal\:1.1.4--pl5321hec16e2b_1'
-    threads: 8
-    shell:
-        """
-        mkdir -p {output[0]}
-        for cm in data/I_candidate-models/*/*.cm ; do
-            echo $cm >> {log} 2>&1
-            p="{output[0]}/$(basename $cm .cm).txt"
-            cmsearch --max                      \
-                --tblout $p --cpu {threads}     \
-                $cm {input.genome} >> {log} 2>&1
-        done
-        touch {output[1]}
-        """
-
-
-rule I_pergenome:
-    input:
-        lambda wild: A_aggregate_genomes(wild, 'data/I_cmsearch/{tax_bio}/run.done')
-    output:
-        touch('data/I_cmsearch/runs.done')
-
-
