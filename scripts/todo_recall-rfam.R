@@ -7,6 +7,7 @@
 library(tidyverse)
 library(tidygraph)
 library(plyranges)
+library(furrr)
 
 library(conflicted)
 
@@ -14,6 +15,9 @@ conflict_prefer("filter", "dplyr")
 conflict_prefer("rename", "dplyr")
 conflict_prefer("n", "dplyr")
 conflict_prefer("first", "dplyr")
+
+cpus <- 10
+plan(multicore, workers = cpus)
 
 ################################################################################
 
@@ -55,8 +59,16 @@ path.genomes %>%
 path.trees %>%
   Sys.glob() %>%
   set_names(. %>% dirname %>% basename) %>%
-  map(ape::read.tree)  %>%
-  map('tip.label') -> tree.genes
+  future_map(function(i) {
+    ape::read.tree(i)$tip.label
+  }) -> tree.genes
+  # map(ape::read.tree)  %>%
+  # map('tip.label') -> tree.genes
+
+# match genes to KO terms
+tree.genes %>%
+  map2(names(.), ~ tibble(gene = .x, KO = .y)) %>%
+  bind_rows() -> ko.gene
 
 # length of chromosomes/plastids
 tibble(
@@ -130,20 +142,17 @@ bind_ranges(
     filter(x == 'downstream', gene == origin.gene)
 ) %>%
   as_tibble() %>%
-  select(gene, x, candidate.i) -> to.export
+  select(gene, x, candidate.i) %>%
+  # Divergend from D_*R script from here onward
+  left_join(ko.gene, 'gene') %>%
+  unite(region, KO, x) -> to.intergenic
 
-# Divergend from D_*R script: format as ranges with the KO info instead
-tree.genes %>%
-  map2(names(.), ~ tibble(gene = .x, KO = .y)) %>%
-  bind_rows() -> ko.gene
+candidate.flanking[to.intergenic$candidate.i] %>%
+  mutate(region = to.intergenic$region) %>%
+  select(region, origin.gene, intergenic.region = candidate.i) -> search.ranges
 
-# the sequences to be exported
-candidate.flanking %>%
-  filter(candidate.i %in% to.export$candidate.i) %>%
-  select(gene = origin.gene, x) -> search.ranges
 search.ranges %>%
-  as_tibble() %>%
-  left_join(ko.gene, 'gene') -> search.tbl
+  as_tibble() -> search.tbl
 
 write_tsv(search.tbl, 'foo.tsv.gz')
 
@@ -159,6 +168,7 @@ cats <- read_tsv(in.cats)
 ################################################################################
 # as genomic range
 
+# Process motifs and RNIE/terminators equally
 list(
   'RNIE terminator' = term %>%
     select(- tax_bio, - gc),
@@ -170,7 +180,7 @@ list(
 ) %>%
   map2(names(.), ~ mutate(.x, type = .y)) %>%
   bind_rows() %>%
-  mutate(row = 1:n()) %>%
+  mutate(ranges.row = 1:n()) %>%
   rename(seqnames = chr) %>%
   mutate(
     tmp = start,
@@ -181,87 +191,68 @@ list(
   plyranges::as_granges() %>%
   mutate(len = IRanges::width(.)) -> ranges
 
-# Limit to search region
-ranges %>%
-  join_overlap_inner(search.ranges) -> ranges.search
 
 ################################################################################
-# add KO information
+# Limit to search region
 # also filter out alignment sequence positions outside of the initial search
 # region (downside of the exact sequence lookup)
 
-ranges.search %>%
-  as_tibble() %>%
-  # KO info form search region gene
-  left_join(ko.gene, 'gene') %>%
-  select(
-    seqnames, start, end, strand,
-    type, name,
-    rfam, score, evalue,
-    x, KO, gene
-  ) %>%
+
+search.ranges %>%
+  join_overlap_inner(ranges) %>%
   # Extract KO info of motifs
   mutate( motif.ko = str_replace(
     name,
     '^(K[0-9]{5}_[updown]{2,4}stream).fna.motif.*$',
     '\\1'
   )) %>%
-  unite('search.ko', KO, x, remove = FALSE) %>%
   # Keep all Rfam / RNIE or motifs (but then only if search region match)
   filter(
-    (type != 'Candidate motif') | (motif.ko == search.ko)
-  ) %>%
-  select(- motif.ko, - search.ko) %>%
-  mutate(row = 1:n()) %>%
-  as_granges() -> ranges.search.limited
+    (type != 'Candidate motif') | (motif.ko == region)
+  ) -> search.ranges2
 
-ranges.search.limited %>%
+ranges2 <- ranges[search.ranges2$ranges.row] %>%
+  mutate(region = search.ranges2$region)
+
+ranges2 %>%
   as_tibble() %>%
+  select(- ranges.row) %>%
   write_tsv('foo.tsv.gz')
-  
-################################################################################
-# check for overlaps all overlaps (also considering anti-sense)
 
-ranges.search.limited %>%
-  mutate(strand2 = strand) %>%
-  plyranges::join_overlap_intersect(., .) %>%
-  # Exclude overlap with itself
-  filter(row.x != row.y) %>%
-  # !!!! With the split per seargion region (KO/x) a RNIE/Rfam hit could be
-  # !!!! considered for multiple regions
-  # !!!! -> make sure to not count multiple times
-  filter(x.x == x.y, KO.x == KO.y) %>%
-  # Some helpful stats
+################################################################################
+# Compute overlaps, but only per group to prevent erroneous multiple counts
+
+join_overlap_intersect(
+  ranges2 %>%
+    filter(type == 'Candidate motif') %>%
+    select(region, motif = name, ranges.row.motif = ranges.row),
+  ranges2 %>%
+    filter(type != 'Candidate motif') %>%
+    mutate(strand2 = strand) %>%
+    select(- len)
+) %>%
   mutate(
     overlap = IRanges::width(.),
     orientation = ifelse(
-      strand2.x == strand2.y,
+      strand == strand2,
       'sense',
       'anti-sense'
     )
   ) %>%
-  as_tibble() -> overlaps
+  filter(region.x == region.y) %>%
+  select(
+    region = region.x, motif, ranges.row.motif,
+    overlap, orientation,
+    type, name, rfam, ranges.row, score, evalue
+  ) -> overlaps
 
 ################################################################################
 # Determine bp cutoff for recall
 
-overlaps %>%
-  filter(
-    type.x == 'Candidate motif',
-    type.x != type.y
-  ) %>%
-  select(
-    seqnames, start, end, strand,
-    motif = name.x,
-    KO = KO.x, x = x.x, gene = gene.x,
-    overlap, orientation,
-    name = name.y, type = type.y, 
-    rfam = rfam.y, score = score.y, evalue = evalue.y
-  ) -> over.between
-
 cutoff.recall.overlap <- 5
 
-over.between %>%
+overlaps %>%
+  as_tibble %>%
   ggplot(aes(overlap, color = orientation)) +
   stat_ecdf(size = 1.2) +
   ggsci::scale_color_jama() +
@@ -307,31 +298,34 @@ rfam.types %>%
 ################################################################################
 # Determine recall, but specific per search regions!
 
-ranges.search.limited %>%
+ranges2 %>%
   as_tibble() %>%
-  count(name, type, KO, x, name = 'no.seqs.search') -> no.seq.search
+  count(region, type, name, name = 'no.pos') -> no.pos
 
 
-over.between %>%
-  filter(overlap >= cutoff.recall.overlap.high) %>%
+overlaps %>%
+  filter(overlap >= cutoff.recall.overlap) %>%
+  as_tibble %>%
   left_join(rename(rfam.types, rf.type = type), c('name' = 'Family')) %>%
-  # count(rfam.y) %>%
-  # arrange(desc(n))
   mutate(
     type2 = case_when(
       type == 'RNIE terminator' ~ 'RNIE terminator',
       TRUE ~ paste('Rfam', rf.type)
     )
   ) %>%
-  count(motif, KO, x, orientation, type, name, name = 'no.recall') %>%
-  left_join(
-    select(no.seq.search, motif = name, motif.seqs = no.seqs.search),
-    'motif'
+  count(
+    region, motif,
+    orientation, type, type2, name,
+    name = 'no.recall'
   ) %>%
-  left_join(no.seq.search, c('name', 'type', 'KO', 'x')) %>%
+  left_join(no.pos, c('region', 'type', 'name')) %>%
+  left_join(
+    select(no.pos, motif = name, region, no.motif = no.pos),
+    c('region', 'motif')
+  )
   mutate(
-    recall = no.recall / no.seqs.search,
-    precision = no.recall / motif.seqs,
+    recall = no.recall / no.pos,
+    precision = no.recall / no.motif,
     # F1 = 2 TP / (2* TP + FP + FN)
     F1 = 2 * no.recall / ( 2 * no.recall + (no.seqs.search - no.recall) + (motif.seqs - no.recall))
   ) -> over.stat
