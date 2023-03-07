@@ -6,11 +6,25 @@
 
 library(tidyverse)
 library(tidygraph)
+library(plyranges)
+
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("rename", "dplyr")
+conflict_prefer("n", "dplyr")
+conflict_prefer("first", "dplyr")
+
+################################################################################
 
 in.rfam <- 'data/G_rfam-cmsearch.tsv.gz'
 in.term <- 'data/G2_terminators.tsv.gz'
 in.motifs <- 'data/J_motif-aln-seq-pos.tsv'
 in.cats = 'data/J_FDR-categories.tsv'
+
+path.genes <- 'data/A_representatives/genes.tsv.gz'
+path.genomes <- 'data/A_representatives/*/genome.fna.gz'
+path.trees <- 'data/C_shrink/*/output.tree'
 
 # Colorblind-friendly palettes of the Color Universal Design
 # https://riptutorial.com/r/example/28354/colorblind-friendly-palettes
@@ -18,7 +32,123 @@ cbbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
                 "#0072B2", "#D55E00", "#CC79A7")
 
 ################################################################################
-# Load data
+# Re-create search sequence coordinates computation
+# (Omitted to explicilty save and it is now easier to re-implement than risking
+#  a broken Snakemake pipeline)
+# Code copy/pasted from `D_search-seqs.R` (see comment in that file for explanations)
+
+# Genes
+genes <- read_tsv(path.genes)
+genes %>%
+  select(seqnames = tax.bio.chr, start, end, strand) %>%
+         # tax.bio.gene, tax.bio) %>%
+  as_granges() -> genes.range
+names(genes.range) <- genes$tax.bio.gene
+
+# Genomes
+path.genomes %>%
+  Sys.glob() %>%
+  map(Biostrings::readDNAStringSet) %>%
+  purrr::reduce(.f = c) -> genomes
+
+# Tree genes (in this script only the labels of the tips are needed) %
+path.trees %>%
+  Sys.glob() %>%
+  set_names(. %>% dirname %>% basename) %>%
+  map(ape::read.tree)  %>%
+  map('tip.label') -> tree.genes
+
+# length of chromosomes/plastids
+tibble(
+  seqnames = names(genomes),
+  start = 1, end = width(genomes),
+  strand = '*'
+) %>%
+  as_granges() -> genomes.len
+
+# stranded / without annotation on at least one strand
+bind_ranges(
+  mutate(genomes.len, strand = '+'),
+  mutate(genomes.len, strand = '-')
+) -> genomes.len.both
+genomes.len.both %>%
+  setdiff_ranges_directed(reduce_ranges_directed(genes.range)) -> stranded
+
+LIMITS <- c(20, 500)
+
+# Genes that have flanking regions with potential to be exported
+tree.genes %>%
+  unlist %>%
+  unique -> tree.genes.uq
+
+# iqtree renamed some genes, by translating special chars to '_'
+names(genes.range) <- str_replace_all(
+  names(genes.range),
+  '[^A-Za-z0-9_.]',
+  '_'
+)
+
+# anchoring genes for CMfinder
+genes.anchors <- genes.range[tree.genes.uq] %>%
+  mutate(gene = names(.))
+
+# The potential flanking regions are +/- 500 bp of the anchor gene
+c(
+  genes.anchors %>%
+    flank_upstream(LIMITS[2])  %>%
+    mutate(x = 'upstream'),
+  genes.anchors %>%
+    flank_downstream(LIMITS[2])  %>%
+    mutate(x = 'downstream')
+) %>%
+  mutate(origin.gene = gene) %>%
+  select(-gene) %>%
+  mutate(potential.i = 1:plyranges::n()) -> potential.flanking
+
+# The flanking sequence have to be
+# 1. stranded intergenic
+potential.flanking %>%
+  join_overlap_intersect_directed(stranded) %>%
+  # 2. within the boundary of the plasmid (here, no wrap around origin)
+  join_overlap_intersect_directed(genomes.len.both) %>%
+  # 3. with the minimal specified size of 20 bp
+  filter(width(.) >= LIMITS[1]) %>%
+  select(- potential.i) %>%
+  unique %>%
+  mutate(candidate.i = 1:plyranges::n()) -> candidate.flanking
+
+# ! Challange: there might be multiple gaps within a general range
+# Illustration:
+#    <GeneX>   <ShortGene>  <AnchorGene>
+#        <--------500bp---->
+#            ##           ## (two candidate gaps)
+#   Solution: Find those closes to the 5'/3' ends of the anchor genes
+bind_ranges(
+  join_follow_upstream(genes.anchors, candidate.flanking) %>%
+    filter(x == 'upstream', gene == origin.gene),
+  join_precede_downstream(genes.anchors, candidate.flanking) %>%
+    filter(x == 'downstream', gene == origin.gene)
+) %>%
+  as_tibble() %>%
+  select(gene, x, candidate.i) -> to.export
+
+# Divergend from D_*R script: format as ranges with the KO info instead
+tree.genes %>%
+  map2(names(.), ~ tibble(gene = .x, KO = .y)) %>%
+  bind_rows() -> ko.gene
+
+# the sequences to be exported
+candidate.flanking %>%
+  filter(candidate.i %in% to.export$candidate.i) %>%
+  select(gene = origin.gene, x) -> search.ranges
+search.ranges %>%
+  as_tibble() %>%
+  left_join(ko.gene, 'gene') -> search.tbl
+
+write_tsv(search.tbl, 'foo.tsv.gz')
+
+################################################################################
+# Load remaining data
 
 rfam <- read_tsv(in.rfam)
 term <- read_tsv(in.term)
@@ -51,20 +181,59 @@ list(
   plyranges::as_granges() %>%
   mutate(len = IRanges::width(.)) -> ranges
 
+# Limit to search region
+ranges %>%
+  join_overlap_inner(search.ranges) -> ranges.search
+
+################################################################################
+# add KO information
+# also filter out alignment sequence positions outside of the initial search
+# region (downside of the exact sequence lookup)
+
+ranges.search %>%
+  as_tibble() %>%
+  # KO info form search region gene
+  left_join(ko.gene, 'gene') %>%
+  select(
+    seqnames, start, end, strand,
+    type, name,
+    rfam, score, evalue,
+    x, KO, gene
+  ) %>%
+  # Extract KO info of motifs
+  mutate( motif.ko = str_replace(
+    name,
+    '^(K[0-9]{5}_[updown]{2,4}stream).fna.motif.*$',
+    '\\1'
+  )) %>%
+  unite('search.ko', KO, x, remove = FALSE) %>%
+  # Keep all Rfam / RNIE or motifs (but then only if search region match)
+  filter(
+    (type != 'Candidate motif') | (motif.ko == search.ko)
+  ) %>%
+  select(- motif.ko, - search.ko) %>%
+  mutate(row = 1:n()) %>%
+  as_granges() -> ranges.search.limited
+
+ranges.search.limited %>%
+  as_tibble() %>%
+  write_tsv('foo.tsv.gz')
+  
 ################################################################################
 # check for overlaps all overlaps (also considering anti-sense)
 
-ranges %>%
+ranges.search.limited %>%
   mutate(strand2 = strand) %>%
   plyranges::join_overlap_intersect(., .) %>%
   # Exclude overlap with itself
   filter(row.x != row.y) %>%
+  # !!!! With the split per seargion region (KO/x) a RNIE/Rfam hit could be
+  # !!!! considered for multiple regions
+  # !!!! -> make sure to not count multiple times
+  filter(x.x == x.y, KO.x == KO.y) %>%
   # Some helpful stats
   mutate(
     overlap = IRanges::width(.),
-    jaccard = overlap / (len.x + len.y - overlap),
-    x.rel = overlap / len.x,
-    y.rel = overlap / len.y,
     orientation = ifelse(
       strand2.x == strand2.y,
       'sense',
@@ -80,10 +249,17 @@ overlaps %>%
   filter(
     type.x == 'Candidate motif',
     type.x != type.y
+  ) %>%
+  select(
+    seqnames, start, end, strand,
+    motif = name.x,
+    KO = KO.x, x = x.x, gene = gene.x,
+    overlap, orientation,
+    name = name.y, type = type.y, 
+    rfam = rfam.y, score = score.y, evalue = evalue.y
   ) -> over.between
 
-cutoff.recall.overlap.high <- 10
-cutoff.recall.overlap.low <- 1
+cutoff.recall.overlap <- 5
 
 over.between %>%
   ggplot(aes(overlap, color = orientation)) +
@@ -93,11 +269,10 @@ over.between %>%
   scale_x_log10(breaks = c(1, 5, 10, 50, 100, 150)) +
   annotation_logticks(sides = 'b') +
   scale_y_continuous(breaks = seq(0, 1, .1)) +
-  geom_vline(xintercept = cutoff.recall.overlap.low, color = 'red') +
-  geom_vline(xintercept = cutoff.recall.overlap.high, color = 'blue') +
+  geom_vline(xintercept = cutoff.recall.overlap, color = 'blue') +
   xlab('Overlap with candidate motif [bp]') +
   ylab('Empirical cumulative density') +
-  facet_wrap( ~ type.y) +
+  facet_wrap( ~ type) +
   theme_bw(18) +
   theme(legend.position = 'bottom')
 
@@ -130,35 +305,35 @@ rfam.types %>%
   rename(type.full = type, type = type2) -> rfam.types
 
 ################################################################################
+# Determine recall, but specific per search regions!
 
-ranges %>%
+ranges.search.limited %>%
   as_tibble() %>%
-  count(name, type, name = 'no.seqs') -> no.seq
+  count(name, type, KO, x, name = 'no.seqs.search') -> no.seq.search
 
 
 over.between %>%
   filter(overlap >= cutoff.recall.overlap.high) %>%
-  left_join(rfam.types, c('name.y' = 'Family')) %>%
+  left_join(rename(rfam.types, rf.type = type), c('name' = 'Family')) %>%
   # count(rfam.y) %>%
   # arrange(desc(n))
   mutate(
     type2 = case_when(
-      type.y == 'RNIE terminator' ~ 'RNIE terminator',
-      TRUE ~ paste('Rfam', type)
+      type == 'RNIE terminator' ~ 'RNIE terminator',
+      TRUE ~ paste('Rfam', rf.type)
     )
   ) %>%
-  select(motif = name.x, type = type.y, type2, name = name.y) %>%
-  count(motif, type, type2, name, name = 'no.recall') %>%
+  count(motif, KO, x, orientation, type, name, name = 'no.recall') %>%
   left_join(
-    select(no.seq, motif = name, motif.seqs = no.seqs),
+    select(no.seq.search, motif = name, motif.seqs = no.seqs.search),
     'motif'
   ) %>%
-  left_join(no.seq, c('name', 'type')) %>%
+  left_join(no.seq.search, c('name', 'type', 'KO', 'x')) %>%
   mutate(
-    recall = no.recall / no.seqs,
+    recall = no.recall / no.seqs.search,
     precision = no.recall / motif.seqs,
     # F1 = 2 TP / (2* TP + FP + FN)
-    F1 = 2 * no.recall / ( 2 * no.recall + (no.seqs - no.recall) + (motif.seqs - no.recall))
+    F1 = 2 * no.recall / ( 2 * no.recall + (no.seqs.search - no.recall) + (motif.seqs - no.recall))
   ) -> over.stat
 over.stat %>%
   ggplot(aes(recall, precision, color = type2)) +
