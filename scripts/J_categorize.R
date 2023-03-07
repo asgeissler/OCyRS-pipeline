@@ -2,7 +2,7 @@
 # Further classify by variation and power
 
 library(tidyverse)
-library(patchwork)
+# library(patchwork)
 library(corrplot)
 
 # in.fdr <- 'data/I_fdr.tsv'
@@ -20,10 +20,10 @@ in.rfam <- unlist(snakemake@input[['rfam']])
 # out.dist <- 'test2.png'
 # out.cats <- 'test2.tsv'
 
-out.cor <- unlist(snakemake@input[['cor']])
-out.cut <- unlist(snakemake@input[['cut']])
-out.dist <- unlist(snakemake@input[['dist']])
-out.cats <- unlist(snakemake@input[['cats']])
+out.cor <- unlist(snakemake@output[['cor']])
+out.cut <- unlist(snakemake@output[['cut']])
+out.dist <- unlist(snakemake@output[['dist']])
+out.cats <- unlist(snakemake@output[['cats']])
 
 my.colors <- c(
   "Background motifs" = "#000000",
@@ -171,7 +171,7 @@ bind_rows(cats1, cats2) %>%
     # axis.text.x = element_blank()
   ) -> p.criteria
 
-ggsave(out.cut, p.criteria,
+ggsave(filename = out.cut, plot = p.criteria,
        width = 16, height = 8,
        scale = 0.9,
        dpi = 400)
@@ -275,7 +275,17 @@ cats %>%
   ylab('No. motifs or\nRfam families') +
   theme_bw(16) +
   # guides(fill = guide_legend(nrow = 3, size = 15)) +
+  guides(fill = guide_legend(
+    nrow = 2,
+    label.hjust = 0.5, label.vjust = 1,
+    label.position = 'bottom',
+    byrow = TRUE,
+    direction = 'vertical'
+  )) +
   theme(
+    # legend.box.spacing = unit(5, 'cm'),
+    legend.key.width = unit(7, 'cm'),
+    # legend.margin = margin(0, 0, 0, 0),
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank(),
     legend.position = 'bottom',
@@ -285,19 +295,20 @@ cats %>%
   ) -> p2
 
 
-# cowplot::plot_grid(
-#   p1,
-#   p2,
-#   labels = 'AUTO',
-#   label_size = 18,
-#   cols = 1
-# )
+cowplot::plot_grid(
+  p1,
+  p2,
+  labels = 'AUTO',
+  label_size = 18,
+  rel_heights = c(1, 1.3),
+  cols = 1
+) -> p3
 
 
-p1 / p2 +
-  plot_annotation(tag_levels = 'A')
+# p1 / p2 +
+#   plot_annotation(tag_levels = 'A')
 
-ggsave(out.dist,
+ggsave(filename = out.dist, plot = p3,
        width = 14, height = 12,
        bg = 'white',
        scale = 1.1,
