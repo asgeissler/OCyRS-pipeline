@@ -30,9 +30,9 @@ my.colors <- c(
   "FDR > 10%" = "#999999",
   "All biological motifs" = "#A6CEE3", 
   "FDR ≤ 10%" = "#1F78B4",
-  'High power\n(low covaryation)' = "#B15928",
-  "Conserved sequence\n(low covaryation and power)" = "#FDBF6F",
-  'High covaryation' = "#FF7F00",
+  'High power\n(low covariation)' = "#B15928",
+  "Conserved sequence\n(low covariation and power)" = "#FDBF6F",
+  'High covariation' = "#FF7F00",
   "Cyanobacterial Rfam" = "#6A3D9A",
   "Bacterial Rfam" = "#CAB2D6"
 )
@@ -191,16 +191,16 @@ fdr %>%
 # Build iterativly, but do not in
 fdr10 %>%
   mutate(cls = case_when(
-    `Covarying bps %` >= 20 ~ 'High covaryation',
-    `Alignment power %` >= 20 ~ 'High power\n(low covaryation)',
-    TRUE ~ "Conserved sequence\n(low covaryation and power)"
+    `Covarying bps %` >= 20 ~ 'High covariation',
+    `Alignment power %` >= 20 ~ 'High power\n(low covariation)',
+    TRUE ~ "Conserved sequence\n(low covariation and power)"
   )) %>%
   select(motif, dir, cat = cls) %>%
   mutate_at(
     'cat', fct_relevel,
-    'High power\n(low covaryation)',
-    "Conserved sequence\n(low covaryation and power)",
-    'High covaryation'
+    'High power\n(low covariation)',
+    "Conserved sequence\n(low covariation and power)",
+    'High covariation'
   ) %>%
   arrange(cat) %>%
   mutate_at('cat', as.character) -> cats3
