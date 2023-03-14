@@ -212,7 +212,8 @@ search.ranges %>%
   ) -> search.ranges2
 
 ranges2 <- ranges[search.ranges2$ranges.row] %>%
-  mutate(region = search.ranges2$region)
+  mutate(region = search.ranges2$region) %>%
+  unique()
 
 ranges2 %>%
   as_tibble() %>%
@@ -322,183 +323,87 @@ overlaps %>%
   left_join(
     select(no.pos, motif = name, region, no.motif = no.pos),
     c('region', 'motif')
-  )
+  ) %>%
   mutate(
     recall = no.recall / no.pos,
     precision = no.recall / no.motif,
-    # F1 = 2 TP / (2* TP + FP + FN)
-    F1 = 2 * no.recall / ( 2 * no.recall + (no.seqs.search - no.recall) + (motif.seqs - no.recall))
   ) -> over.stat
-over.stat %>%
-  ggplot(aes(recall, precision, color = type2)) +
-  # ggsci::scale_color_jco(name = NULL) +
-  scale_color_manual(values = cbbPalette, name = NULL) +
-  geom_point(size = 3, alpha = 0.7) +
-  scale_x_log10() +
-  scale_y_log10() +
-  xlab('recall (overlapping motifs rel. to\nno. RNIE/Rfam model hits)') +
-  ylab('precision (overlapping motifs\nrel. to no. motif homologs') +
-  annotation_logticks() +
-  theme_bw(18) +
-  theme(legend.position = 'bottom') -> p
-
-p <- ggExtra::ggMarginal(p, type = 'histogram')
-ggsave('foo3.jpeg', plot = p, width = 10, height = 10, dpi = 500)
 
 over.stat %>%
-  group_by(motif) %>%
-  slice_max(recall) %>%
-  left_join(cats, 'motif') %>%
-  ggplot(aes(recall, precision, color = category)) +
-  geom_point() + facet_wrap(~ type2, scales = 'free')
-  ggplot(aes(type2, precision, color = category)) +
-  geom_boxplot()
-categroy
-
-###
-
-ns <- sprintf('Overlapping RNA structure motifs (≥ %g bp)', cutoff.recall.overlap)
-over.stat %>%
-  select(motif, type2) %>%
-  unique %>%
-  count(type2) %>%
-  arrange(desc(n)) %>%
-  rename(!! ns:= n) %>%
-  knitr::kable()
+  write_tsv('foo.tsv')
 
 ################################################################################
-# Select the potential novel homologs
+
+over.stat %>%
+  select(motif, orientation, type2, name, recall) %>%
+  left_join(cats, 'motif') %>%
+  mutate_at('category', str_replace, ' \\(', '\n(') %>%
+  mutate(type3 = fct_reorder(type2, recall, .desc = TRUE)) %>%
+  ggplot(aes(type3, recall, color = orientation)) +
+  # scale_color_manual(values = cbbPalette, name = NULL) +
+  ggsci::scale_color_jama() +
+  geom_boxplot(position = position_dodge2(preserve = 'single')) +
+  xlab(NULL) +
+  ylab('Recall rates per predicted RNA structure motifs\nconstrained to ortholog search regions') +
+  scale_y_continuous(breaks = seq(0, 1, .1)) +
+  facet_grid(~ category, scales = 'free_x', space = 'free_x') +
+  theme_bw(18) +
+  theme(
+    legend.position = 'bottom',
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  ) -> p1
 
 
-no.seq %>%
-  filter(type == 'CMfinder motif') %>%
-  select(- type) %>%
-  rename(motif = name) %>%
+################################################################################
+
+over.stat %>%
+  left_join(cats, 'motif') %>%
+  mutate_at('category', str_replace, ' \\(', '\n(') %>%
+  mutate(precision = pmin(precision, 1)) %>%
+  ggplot(aes(recall, precision, color = type2)) +
+  geom_point(size = 3, alpha = 0.7) +
+  ggsci::scale_color_igv(name = NULL) +
+  facet_grid(orientation ~ category) +
+  theme_bw(18) +
+  theme(legend.position = 'bottom') -> p2
+
+cowplot::plot_grid(p1, p2, labels = 'AUTO', label_size = 16, cols = 1)
+
+ggsave('foo.png', width = 16, height = 18, dpi = 400)
+
+################################################################################
+
+over.stat %>%
+  left_join(cats, 'motif') %>%
+  filter(recall > .5, precision > .5) %>%
+  # select(type2, name, orientation, motif, category) %>%
+  select(type2, name, motif, category) %>%
+  unique -> foo
+
+full_join(
+  foo %>%
+    select(- motif) %>%
+    unique %>%
+    count(type2, category, name = 'Families'),
+  foo %>%
+    select(- name) %>%
+    unique %>%
+    count(type2, category, name = 'Motifs'),
+  c('type2', 'category')
+) %>%
+  unite('nice', Families, Motifs, sep = ' - ') %>%
+  spread(category, nice, fill = '0 - 0') %>%
+  rename('Recall & precision > 0.5; No. families - motifs' = type2) %>%
+  write_tsv('foo.tsv')
+  
+
+################################################################################
+# Select the potential novel motifs
+
+cats %>%
   anti_join(over.stat, 'motif') -> potential.novel
 
-
-ranges.nonredundant %>%
-  filter(type == 'CMfinder motif') %>%
-  filter(name %in% potential.novel$motif) %>%
-  select(- type, - rfam) -> potential.novel.ranges
-
-################################################################################
-# Compare KEGG terms, associated pathways when comparing only the
-# alignment sequences or also additional homologs
-
-# Questions of interest:
-# 1. Pathways associated via KO number
-# 2. Pathways associated for genes +/- 500 bp away to include sequence homologs
-# 3. When encluding cmsearch predicted homologs
-
-# Q1
-'https://rest.kegg.jp/link/pathway/ko' %>%
-  read_tsv(col_names = c('ko', 'path')) %>%
-  filter(str_detect(path, 'map')) %>%
-  mutate_at('ko', str_remove, '^ko:') %>%
-  mutate_at('path', str_remove, '^path:') -> ko.path
-
-'https://rest.kegg.jp/list/pathway' %>%
-  read_tsv(col_names = c('path', 'path_name')) %>%
-  filter(str_detect(path, 'map')) %>%
-  mutate_at('path', str_remove, '^path:') -> path.names
-
-potential.novel %>%
-  mutate(ko = str_remove(motif, '_.*$')) %>%
-  left_join(ko.path, 'ko') %>%
-  left_join(path.names, 'path') %>%
-  select(path, path_name, motif) %>%
-  unique %>%
-  drop_na %>%
-  count(
-    path, path_name,
-    name = 'Motifs associated via CMfinder search anchor'
-  ) -> q1
-
-
-# Q2
-
-'data/A_representatives/kegg.tsv.gz' %>%
-  read_tsv() -> gene.kegg
-
-'data/A_representatives/genes.tsv.gz' %>%
-  read_tsv() -> genes
-
-# search in +/- 500
-genes %>%
-  select(
-    seqnames = tax.bio.chr,
-    start, end, strand,
-    tax.bio.gene
-  ) %>%
-  plyranges::as_granges() %>%
-  mutate(
-    start = start - 500,
-    end = end + 500
-  ) -> genes500
-  
-# check overlaps
-genes500 %>%
-  plyranges::join_overlap_intersect(potential.novel.ranges) %>%
-  as_tibble() -> genes500.novel.over
-
-
-genes500.novel.over %>%
-  left_join(gene.kegg, 'tax.bio.gene') %>%
-  filter(db == 'pathway') %>%
-  select(
-    motif = name, tax.bio.gene, alignment.seq,
-    path = term, path_name = title
-  ) %>%
-  unique -> genes500.motif.path
-genes500.motif.path %>%
-  filter(alignment.seq) %>%
-  drop_na %>%
-  count(
-    path, path_name,
-    name = 'Motifs with align. seq. near genes'
-  ) -> q2
-
-# Q3, repeated but without the alignment.seq filter
-genes500.motif.path %>%
-  drop_na %>%
-  count(
-    path, path_name,
-    name = 'Motifs when incl. cmsearch homologs'
-  ) -> q3
-
-
-list(q1, q2, q3) %>%
-  reduce(full_join, by = c('path', 'path_name')) %>%
-  View
-
-### Why does the number decrease for map00543?
-potential.novel %>%
-  mutate(ko = str_remove(motif, '_.*$')) %>%
-  left_join(ko.path, 'ko') %>%
-  left_join(path.names, 'path') %>%
-  filter(path == 'map00543')
-
-gene.kegg %>%
-  filter(term == 'K19294') %>%
-  select(tax.bio.gene) %>%
-  left_join(gene.kegg) %>%
-  filter(term == 'map00543')
-# Problem: KEGG rest api lists KO-path associations not in proGenomes :*(
-
-################################################################################
-
-potential.novel %>%
-  left_join(homologs, 'motif') %>%
-  filter(str_detect(tax.bio.chr, '^32049')) %>%
-  select(motif, tax.bio.chr, start, end, strand, alignment.seq)
-
-potential.novel %>%
-  left_join(homologs, 'motif') %>%
-  filter(str_detect(tax.bio.chr, '^32049')) %>%
-  select(motif) %>%
-  left_join(fdr, 'motif')
-
+write_tsv(potential.novel, 'foo.tsv')
 
 ################################################################################
 
