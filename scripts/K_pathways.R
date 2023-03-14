@@ -27,6 +27,8 @@ ko.path <- kegg.ko %>%
   inner_join(kegg.path.ko, 'term') %>%
   inner_join(kegg.paths, 'path')
 
+write_tsv(ko.path, 'data/K_ko-path.tsv')
+
 ################################################################################
 # Load pipeline data
 
@@ -49,6 +51,7 @@ potential.novel %>%
   select(motif, category, term, side) %>%
   inner_join(ko.path, 'term') -> motif.path
 
+write_tsv(motif.path, 'data/K_motif-path.tsv')
 ################################################################################
 # Associaiton to positions and species
 
@@ -59,9 +62,13 @@ potential.novel %>%
   mutate(tax.bio = str_remove(seqnames, '\\.[^.]*$')) %>%
   left_join(tax, 'tax.bio') -> motif.tax.pos
 
+write_tsv(motif.tax.pos, 'data/K_motif-tax-pos.tsv')
+
 motif.tax.pos %>%
   select(- c(seqnames, start, end, width, strand)) %>%
   unique -> motif.tax
+
+write_tsv(motif.tax, 'data/K_motif-tax.tsv')
 
 ################################################################################
 # A small summary table
@@ -80,7 +87,7 @@ foo %>%
   mutate(category = 'In total') %>%
   group_by(category) %>%
   summarize_if(is.numeric, sum) %>%
-  bind_rows(foo, .)
-
+  bind_rows(foo, .) %>%
+  write_tsv('data/K_overview.tsv')
 
 ################################################################################

@@ -30,6 +30,7 @@ include: 'rules/G2_rnie.smk'
 include: 'rules/H_scores.smk'
 include: 'rules/I_fdr.smk'
 include: 'rules/J_recall.smk'
+include: 'rules/K_pathways.smk'
 
 # Target rules
 # Initial proGenomes download is separate to keep remaining rules streamlined
@@ -77,7 +78,9 @@ rule all:
         # Collect positions of # alignment sequences (by exact look up)
         'data/J_motif-aln-seq-pos.tsv',
         # predict novel motifs
-        'data/J_novel/potentially-novel-motifs.tsv'
-
-
-
+        'data/J_novel/potentially-novel-motifs.tsv',
+        # Associate potentially novel motifs to pathways as species information
+        'data/K_motif-path.tsv'
+  
+  
+  
