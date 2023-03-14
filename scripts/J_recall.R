@@ -5,7 +5,6 @@
 # (B) RNIE terminator predictions
 
 library(tidyverse)
-library(tidygraph)
 library(plyranges)
 library(furrr)
 
