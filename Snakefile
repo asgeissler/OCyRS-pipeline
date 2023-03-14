@@ -75,7 +75,9 @@ rule all:
         # Categorize low FDR motifs by R-scape scores
         'data/J_FDR-categories.tsv',
         # Collect positions of # alignment sequences (by exact look up)
-        'data/J_motif-aln-seq-pos.tsv'
+        'data/J_motif-aln-seq-pos.tsv',
+        # predict novel motifs
+        'data/J_novel/potentially-novel-motifs.tsv'
 
 
 

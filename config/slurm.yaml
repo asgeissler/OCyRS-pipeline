@@ -115,3 +115,8 @@ J_seq_pos:
     mem: 32GB
     time: 0-05:00:00
 
+
+J_novel:
+    cpus: 16
+    mem: 16GB
+    time: 0-01:00:00

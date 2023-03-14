@@ -16,7 +16,9 @@ conflict_prefer("rename", "dplyr")
 conflict_prefer("n", "dplyr")
 conflict_prefer("first", "dplyr")
 
-cpus <- 10
+
+cpus <- as.integer(unlist(snakemake@threads))
+# cpus <- 10
 plan(multicore, workers = cpus)
 
 ################################################################################
@@ -24,7 +26,7 @@ plan(multicore, workers = cpus)
 in.rfam <- 'data/G_rfam-cmsearch.tsv.gz'
 in.term <- 'data/G2_terminators.tsv.gz'
 in.motifs <- 'data/J_motif-aln-seq-pos.tsv'
-in.cats = 'data/J_FDR-categories.tsv'
+in.cats <- 'data/J_FDR-categories.tsv'
 
 path.genes <- 'data/A_representatives/genes.tsv.gz'
 path.genomes <- 'data/A_representatives/*/genome.fna.gz'
@@ -154,7 +156,7 @@ candidate.flanking[to.intergenic$candidate.i] %>%
 search.ranges %>%
   as_tibble() -> search.tbl
 
-write_tsv(search.tbl, 'foo.tsv.gz')
+write_tsv(search.tbl, 'data/J_novel/all_intergenic_regions.tsv.gz')
 
 ################################################################################
 # Load remaining data
@@ -218,7 +220,7 @@ ranges2 <- ranges[search.ranges2$ranges.row] %>%
 ranges2 %>%
   as_tibble() %>%
   select(- ranges.row) %>%
-  write_tsv('foo.tsv.gz')
+  write_tsv('data/J_novel/references_inside-of_intergenic_regions.tsv.gz')
 
 ################################################################################
 # Compute overlaps, but only per group to prevent erroneous multiple counts
@@ -268,7 +270,7 @@ overlaps %>%
   theme_bw(18) +
   theme(legend.position = 'bottom')
 
-ggsave('foo2.jpeg',
+ggsave('data/J_novel/reference-motif-overlaps.jpg',
        width = 12, height = 6, dpi = 500)
 
 ################################################################################
@@ -330,7 +332,7 @@ overlaps %>%
   ) -> over.stat
 
 over.stat %>%
-  write_tsv('foo.tsv')
+  write_tsv('data/J_novel/reference-motif-overlap-stats.tsv')
 
 ################################################################################
 
@@ -369,7 +371,7 @@ over.stat %>%
 
 cowplot::plot_grid(p1, p2, labels = 'AUTO', label_size = 16, cols = 1)
 
-ggsave('foo.png', width = 16, height = 18, dpi = 400)
+ggsave('data/J_novel/recall-precision-plot.jpg', width = 16, height = 18, dpi = 400)
 
 ################################################################################
 
@@ -394,7 +396,7 @@ full_join(
   unite('nice', Families, Motifs, sep = ' - ') %>%
   spread(category, nice, fill = '0 - 0') %>%
   rename('Recall & precision > 0.5; No. families - motifs' = type2) %>%
-  write_tsv('foo.tsv')
+  write_tsv('data/J_novel/overview.tsv')
   
 
 ################################################################################
@@ -403,7 +405,7 @@ full_join(
 cats %>%
   anti_join(over.stat, 'motif') -> potential.novel
 
-write_tsv(potential.novel, 'foo.tsv')
+write_tsv(potential.novel, 'data/J_novel/potentially-novel-motifs.tsv')
 
 ################################################################################
 
