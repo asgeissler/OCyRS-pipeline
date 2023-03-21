@@ -24,8 +24,8 @@ kegg.ko <- 'https://rest.kegg.jp/list/ko' %>%
 
 
 ko.path <- kegg.ko %>%
-  inner_join(kegg.path.ko, 'term') %>%
-  inner_join(kegg.paths, 'path')
+  left_join(kegg.path.ko, 'term') %>%
+  left_join(kegg.paths, 'path')
 
 write_tsv(ko.path, 'data/K_ko-path.tsv')
 
@@ -49,7 +49,7 @@ potential.novel %>%
   )) %>%
   separate(motif.ko, c('term', 'side'), sep = '_') %>%
   select(motif, category, term, side) %>%
-  inner_join(ko.path, 'term') -> motif.path
+  left_join(ko.path, 'term') -> motif.path
 
 write_tsv(motif.path, 'data/K_motif-path.tsv')
 ################################################################################
