@@ -44,10 +44,11 @@ rule J_novel:
     output:
         'data/J_novel/all_intergenic_regions.tsv.gz',
         'data/J_novel/references_inside-of_intergenic_regions.tsv.gz',
-        'data/J_novel/reference-motif-overlaps.jpg',
         'data/J_novel/reference-motif-overlap-stats.tsv',
-        'data/J_novel/recall-precision-plot.jpg',
+        'data/J_novel/recall-barplots.jpg',
         'data/J_novel/overview.tsv',
+
+        'data/J_novel/recall-precision-plot.jpg',
         'data/J_novel/potentially-novel-motifs.tsv'
     container: 'renv/renv.sif'
     threads: 16

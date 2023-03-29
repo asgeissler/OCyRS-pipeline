@@ -16,8 +16,8 @@ conflict_prefer("n", "dplyr")
 conflict_prefer("first", "dplyr")
 
 
-cpus <- as.integer(unlist(snakemake@threads))
-# cpus <- 10
+# cpus <- as.integer(unlist(snakemake@threads))
+cpus <- 10
 plan(multicore, workers = cpus)
 
 ################################################################################
@@ -38,7 +38,7 @@ cbbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
 
 ################################################################################
 # Re-create search sequence coordinates computation
-# (Omitted to explicilty save and it is now easier to re-implement than risking
+# (Omitted to explicitly save and it is now easier to re-implement than risking
 #  a broken Snakemake pipeline)
 # Code copy/pasted from `D_search-seqs.R` (see comment in that file for explanations)
 
@@ -53,7 +53,7 @@ names(genes.range) <- genes$tax.bio.gene
 # Genomes
 path.genomes %>%
   Sys.glob() %>%
-  map(Biostrings::readDNAStringSet) %>%
+  future_map(Biostrings::readDNAStringSet) %>%
   purrr::reduce(.f = c) -> genomes
 
 # Tree genes (in this script only the labels of the tips are needed) %
@@ -165,7 +165,6 @@ term <- read_tsv(in.term)
 motifs <- read_tsv(in.motifs)
 cats <- read_tsv(in.cats)
 
-
 ################################################################################
 # as genomic range
 
@@ -222,16 +221,57 @@ ranges2 %>%
   write_tsv('data/J_novel/references_inside-of_intergenic_regions.tsv.gz')
 
 ################################################################################
+# Inspect Evalues to estimate error of CMsearch ahead of CMfinder recall
+
+list(ranges, ranges2) %>%
+  map(function(i) {
+    i %>%
+      filter(!is.na(evalue)) %>%
+      as_tibble() %>%
+      mutate(
+        name = replace_na(name, 'RNIE'),
+        rfam = replace_na(rfam, 'Terminator')
+      ) %>%
+      group_by(name, rfam) %>%
+      summarize(
+        no.hits = n(),
+        evalue.sum = sum(evalue),
+        cmsearch.fdr = evalue.sum / no.hits
+      )
+  }) %>%
+  invoke(.f = left_join, by = c('name', 'rfam')) %>%
+  arrange(cmsearch.fdr.y) %>%
+  transmute(
+    name, rfam,
+    #
+    'CMsearch hits' = as.integer(no.hits.x),
+    'Sum of E-Values' = evalue.sum.x,
+    'FDR' = cmsearch.fdr.x,
+    #
+    'Hits in search regions' = as.integer(replace_na(no.hits.y, 0)),
+    'Corresponding E-Values' = evalue.sum.y,
+    'Expected FDR for CMfinder' = cmsearch.fdr.y
+  ) -> rfam.fdr
+
+################################################################################
 # Compute overlaps, but only per group to prevent erroneous multiple counts
 
+ranges2 %>%
+  filter(type == 'Candidate motif') %>%
+  reduce_ranges_directed() %>%
+  mutate(reduced.row = 1:plyranges::n()) -> ranges2.red.motifs
+
+ranges2 %>%
+  filter(type != 'Candidate motif') %>%
+  group_by(type, rfam) %>%
+  reduce_ranges_directed() %>%
+  ungroup %>%
+  mutate(reduced.row = 1:plyranges::n()) -> ranges2.red.ref
+
 join_overlap_intersect(
-  ranges2 %>%
-    filter(type == 'Candidate motif') %>%
-    select(region, motif = name, ranges.row.motif = ranges.row),
-  ranges2 %>%
-    filter(type != 'Candidate motif') %>%
-    mutate(strand2 = strand) %>%
-    select(- len)
+  ranges2.red.motifs,
+  ranges2.red.ref %>%
+    mutate(strand2 = strand)
 ) %>%
   mutate(
     overlap = IRanges::width(.),
@@ -240,37 +280,7 @@ join_overlap_intersect(
       'sense',
       'anti-sense'
     )
-  ) %>%
-  filter(region.x == region.y) %>%
-  select(
-    region = region.x, motif, ranges.row.motif,
-    overlap, orientation,
-    type, name, rfam, ranges.row, score, evalue
   ) -> overlaps
-
-################################################################################
-# Determine bp cutoff for recall
-
-cutoff.recall.overlap <- 5
-
-overlaps %>%
-  as_tibble %>%
-  ggplot(aes(overlap, color = orientation)) +
-  stat_ecdf(size = 1.2) +
-  ggsci::scale_color_jama() +
-  # scale_x_continuous(breaks = c(seq(0, 50, 10), 100, 150)) +
-  scale_x_log10(breaks = c(1, 5, 10, 50, 100, 150)) +
-  annotation_logticks(sides = 'b') +
-  scale_y_continuous(breaks = seq(0, 1, .1)) +
-  geom_vline(xintercept = cutoff.recall.overlap, color = 'blue') +
-  xlab('Overlap with candidate motif [bp]') +
-  ylab('Empirical cumulative density') +
-  facet_wrap( ~ type) +
-  theme_bw(18) +
-  theme(legend.position = 'bottom')
-
-ggsave('data/J_novel/reference-motif-overlaps.jpg',
-       width = 12, height = 6, dpi = 500)
 
 ################################################################################
 # Ahead of recall, query Rfam family types for more informative plots
@@ -298,105 +308,203 @@ rfam.types %>%
   rename(type.full = type, type = type2) -> rfam.types
 
 ################################################################################
-# Determine recall, but specific per search regions!
-
-ranges2 %>%
-  as_tibble() %>%
-  count(region, type, name, name = 'no.pos') -> no.pos
-
+# Requested: "Recall" if only a single position overlaps...
 
 overlaps %>%
-  filter(overlap >= cutoff.recall.overlap) %>%
-  as_tibble %>%
-  left_join(rename(rfam.types, rf.type = type), c('name' = 'Family')) %>%
+  as_tibble() %>%
+  select(rfam) %>%
+  unique %>%
   mutate(
-    type2 = case_when(
-      type == 'RNIE terminator' ~ 'RNIE terminator',
-      TRUE ~ paste('Rfam', rf.type)
-    )
+    rfam = replace_na(rfam, 'Terminator'),
+    'Overlaps motif' = 'yes'
   ) %>%
-  count(
-    region, motif,
-    orientation, type, type2, name,
-    name = 'no.recall'
-  ) %>%
-  left_join(no.pos, c('region', 'type', 'name')) %>%
+  right_join(rfam.fdr, 'rfam') %>%
   left_join(
-    select(no.pos, motif = name, region, no.motif = no.pos),
-    c('region', 'motif')
-  ) %>%
+    rfam.types %>%
+      select(name = Family, rfam.type = type),
+    'name'
+  ) -> recall.single.overlap
+
+################################################################################
+# Improved: Recall relative to actual positions
+
+list(
+  ranges2.red.ref %>%
+    as_tibble() %>%
+    mutate(rfam = replace_na(rfam, 'Terminator')) %>%
+    select(rfam, reduced.row) %>%
+    unique %>%
+    count(rfam, name = 'reduced.ranges.ref'),
+  overlaps %>%
+    as_tibble() %>%
+    filter(orientation == 'sense') %>%
+    mutate(rfam = replace_na(rfam, 'Terminator')) %>%
+    select(rfam, reduced.row.y) %>%
+    unique %>%
+    count(rfam, name = 'with.sense.overlap'),
+  overlaps %>%
+    as_tibble() %>%
+    filter(orientation == 'anti-sense') %>%
+    mutate(rfam = replace_na(rfam, 'Terminator')) %>%
+    select(rfam, reduced.row.y) %>%
+    unique %>%
+    count(rfam, name = 'with.anti.overlap')
+) %>%
+  purrr::reduce(.f = full_join, by = 'rfam') %>%
+  mutate_if(is.numeric, replace_na, 0) %>%
   mutate(
-    recall = no.recall / no.pos,
-    precision = no.recall / no.motif,
+    sense.recall = with.sense.overlap / reduced.ranges.ref,
+    anti.recall = with.anti.overlap / reduced.ranges.ref
   ) -> over.stat
 
-over.stat %>%
+recall.single.overlap %>%
+  left_join(over.stat, 'rfam') %>% 
+  transmute(
+    Family = name,
+    Name = rfam,
+    Type = replace_na(rfam.type, 'Terminator'),
+    `CMsearch hits`, `Sum of E-Values`, `FDR`,
+    `Hits in search regions`, `Corresponding E-Values`,
+    `Expected FDR for CMfinder`,
+    `Overlaps motif`,
+    'CMfinder sense recall' = sense.recall,
+    'Anti-sense recall' = anti.recall
+  ) -> recall.full
+
+recall.full %>%
   write_tsv('data/J_novel/reference-motif-overlap-stats.tsv')
 
 ################################################################################
+# Plot FDR expected for CMsearch
 
-over.stat %>%
-  select(motif, orientation, type2, name, recall) %>%
-  left_join(cats, 'motif') %>%
-  mutate_at('category', str_replace, ' \\(', '\n(') %>%
-  mutate(type3 = fct_reorder(type2, recall, .desc = TRUE)) %>%
-  ggplot(aes(type3, recall, color = orientation)) +
-  # scale_color_manual(values = cbbPalette, name = NULL) +
-  ggsci::scale_color_jama() +
-  geom_boxplot(position = position_dodge2(preserve = 'single')) +
-  xlab(NULL) +
-  ylab('Recall rates per predicted RNA structure motifs\nconstrained to ortholog search regions') +
-  scale_y_continuous(breaks = seq(0, 1, .1)) +
-  facet_grid(~ category, scales = 'free_x', space = 'free_x') +
+recall.full %>%
+  select(Name, Type, 'CMsearch FDR, overall' = FDR,
+         'FDR within search regions' = `Expected FDR for CMfinder`) %>%
+  drop_na %>%
+  gather('k', 'v', - c(Name, Type)) %>%
+  mutate(Type = fct_reorder(Type, v)) %>%
+  ggplot(aes(Type, v, color = k, group = paste(Type, k))) +
+  geom_boxplot(position = position_dodge(preserve = 'single')) +
+  geom_hline(color = 'red', yintercept = 1e-3) +
+  annotate('text',
+           x = 0.5, y = 0.2, hjust = 0,
+           label = 'FDR = 0.001',
+           color = 'red', size = 5) +
+  ggsci::scale_color_jama(name = NULL) +
+  xlab('RNA family') +
+  ylab('FDR estimate\nSum of E-values over no. CMsearch hits') +
+  scale_y_log10() +
+  guides(color = guide_legend(direction = 'vertical')) +
   theme_bw(18) +
-  theme(
-    legend.position = 'bottom',
-    axis.text.x = element_text(angle = 60, hjust = 1)
-  ) -> p1
+  theme(legend.position = 'bottom') -> p1
+
 
 
 ################################################################################
+# Recall stats
 
-over.stat %>%
-  left_join(cats, 'motif') %>%
-  mutate_at('category', str_replace, ' \\(', '\n(') %>%
-  mutate(precision = pmin(precision, 1)) %>%
-  ggplot(aes(recall, precision, color = type2)) +
-  geom_point(size = 3, alpha = 0.7) +
-  ggsci::scale_color_igv(name = NULL) +
-  facet_grid(orientation ~ category) +
+recall.full %>%
+  filter(`Overlaps motif` == 'yes') %>%
+  gather('recall', 'v', c(`CMfinder sense recall`, `Anti-sense recall`)) %>%
+  mutate(Type = fct_reorder(Type, v, .fun = max)) %>%
+  ggplot(aes(Type, v, color = fct_rev(recall))) +
+  geom_boxplot() +
+  xlab('RNA family') +
+  ylab('Recall of CMfinder strucutres positions\nrelative to CMsearch hits in search regions') +
+  scale_y_continuous(breaks = seq(0, 1, .1)) +
+  scale_color_manual(values = c('blue', 'red'), name = NULL) +
+  # ggsci::scale_color_d3(name = NULL) +
+  guides(color = guide_legend(direction = 'vertical')) +
   theme_bw(18) +
   theme(legend.position = 'bottom') -> p2
 
-cowplot::plot_grid(p1, p2, labels = 'AUTO', label_size = 16, cols = 1)
+cowplot::plot_grid(
+  p1, p2, 
+  labels = 'AUTO', label_size = 16
+)
 
-ggsave('data/J_novel/recall-precision-plot.jpg', width = 16, height = 18, dpi = 400)
+ggsave('data/J_novel/recall-barplots.jpg', width = 17, height = 8, dpi = 400)
 
 ################################################################################
+# Overview table on recall
 
-over.stat %>%
-  left_join(cats, 'motif') %>%
-  filter(recall > .5, precision > .5) %>%
-  # select(type2, name, orientation, motif, category) %>%
-  select(type2, name, motif, category) %>%
-  unique -> foo
+list(
+  recall.full %>%
+    count(Type, name = 'RNA families with CMsearch hits in Cyanobacteria'),
+  recall.full %>%
+    filter(`Hits in search regions` > 0) %>%
+    count(Type, name = 'With hits in search regions'),
+  recall.full %>%
+    filter(`Overlaps motif` == 'yes') %>%
+    count(Type, name = 'Overlapping a CMfinder motif'),
+  recall.full %>%
+    filter(`CMfinder sense recall` >= 0.5) %>%
+    count(Type, name = 'CMfinder recalls ≥50% of CMsearch hits, same strand'),
+  recall.full %>%
+    filter(`Anti-sense recall` >= 0.5) %>%
+    count(Type, name = 'Anti-sense recall ≥50%')
+) -> foo
 
-full_join(
-  foo %>%
-    select(- motif) %>%
-    unique %>%
-    count(type2, category, name = 'Families'),
-  foo %>%
-    select(- name) %>%
-    unique %>%
-    count(type2, category, name = 'Motifs'),
-  c('type2', 'category')
-) %>%
-  unite('nice', Families, Motifs, sep = ' - ') %>%
-  spread(category, nice, fill = '0 - 0') %>%
-  rename('Recall & precision > 0.5; No. families - motifs' = type2) %>%
+foo %>%
+  purrr::reduce(.f = full_join, 'Type') %>%
+  gather('k', 'v', - Type) %>%
+  spread(Type, v) %>%
+  mutate_at('k', fct_relevel, foo %>%
+              map(colnames) %>%
+              unlist %>%
+              discard(~ .x == 'Type') %>%
+              unlist) %>%
+  mutate_if(is.numeric, replace_na, 0) %>%
+  arrange(k) %>%
+  select(
+    'Description' = k,
+    sRNA, `Cis-reg`,
+    other, CRISPR,
+    rRNA, tRNA,
+    everything()
+  ) %>%
   write_tsv('data/J_novel/overview.tsv')
+
+################################################################################
+# Motif-centric overview table of
+# - Predominant recalling family type per motif category
+# - Novel motifs
+# - Motifs in search regions without references (or at least Rfam)
+
+# Motifs overlapping a reduce motif that overlaps a reference
+ranges2 %>%
+  filter(type == 'Candidate motif') %>%
+  join_overlap_intersect(
+    # Reduced motif ranges that overlap a reference
+    ranges2.red.motifs[unique(overlaps$reduced.row.x)]
+  )  -> mot.red.ref
+# Motifs that don't overlap references, or reduced motifs that overlapped
+join_overlap_intersect(
+  ranges2 %>%
+    filter(type == 'Candidate motif'),
+  # Reduced motif ranges that overlap a reference
+  ranges2.red.motifs[unique(overlaps$reduced.row.x)]
+) -> mot.red
+ranges2 %>%
+  filter(type == 'Candidate motif') %>%
+  filter(! (name %in% mot.red$name) ) -> pot.novel
+
+list(
+  cats %>%
+    count(category, name = 'No. CMfinder motifs'),
+  cats %>%
+    filter(motif %in% mot.red.ref$name) %>%
+    count(category, name = 'Motifs recalling a reference'),
+  cats %>%
+    filter(motif %in% pot.novel$name) %>%
+    count(category, name = 'Motifs without reference overlaps'),
+  {
+    search.ranges
+    search.ranges2 %>%
+      filter(type == 'Candidate motif')
+  }
   
+)
 
 ################################################################################
 # Select the potential novel motifs
