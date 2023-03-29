@@ -479,15 +479,33 @@ ranges2 %>%
     ranges2.red.motifs[unique(overlaps$reduced.row.x)]
   )  -> mot.red.ref
 # Motifs that don't overlap references, or reduced motifs that overlapped
-join_overlap_intersect(
-  ranges2 %>%
-    filter(type == 'Candidate motif'),
-  # Reduced motif ranges that overlap a reference
-  ranges2.red.motifs[unique(overlaps$reduced.row.x)]
-) -> mot.red
 ranges2 %>%
   filter(type == 'Candidate motif') %>%
-  filter(! (name %in% mot.red$name) ) -> pot.novel
+  filter(! (name %in% mot.red.ref$name) ) -> pot.novel
+# Potential novel hits per search regions with / without overlapping 
+# CMsearch hits
+{
+  # List of intergenic regions with references
+  search.ranges2 %>%
+    filter(type != 'Candidate motif') %>%
+    as_tibble() %>%
+    pull(intergenic.region) %>%
+    unique -> inter.ref
+  # motifs with ≥1 hit in such regions
+  search.ranges2 %>%
+    filter(type == 'Candidate motif') %>%
+    filter(intergenic.region %in% inter.ref) %>%
+    as_tibble() %>%
+    pull(name) %>%
+    unique -> inter.ref.mot
+  # Negative search, potential novel motifs without such hits
+  pot.novel %>%
+    mutate(search.region = ifelse(
+      name %in% inter.ref.mot, 
+      'has CMsearch ref',
+      'w/o ref'
+    ))
+} -> pot.novel.status
 
 list(
   cats %>%
@@ -498,19 +516,31 @@ list(
   cats %>%
     filter(motif %in% pot.novel$name) %>%
     count(category, name = 'Motifs without reference overlaps'),
-  {
-    search.ranges
-    search.ranges2 %>%
-      filter(type == 'Candidate motif')
-  }
-  
-)
+  cats %>%
+    filter(motif %in%  unlist(
+      pot.novel.status[pot.novel.status$search.region == 'w/o ref']$name
+    )) %>%
+    count(category, name = 'In search regions without CMsearchhits')
+) %>%
+  purrr::reduce(.f = full_join, by = 'category') -> foo
+
+
+foo %>%
+  select_if(is.numeric) %>%
+  map(sum) %>%
+  c('category' = 'Total') %>%
+  as_tibble %>%
+  bind_rows(foo, .) %>%
+  write_tsv('data/J_novel/overview-motifs.tsv')
 
 ################################################################################
 # Select the potential novel motifs
 
-cats %>%
-  anti_join(over.stat, 'motif') -> potential.novel
+pot.novel.status %>%
+  as_tibble() %>%
+  select(motif = name, search.region) %>%
+  unique %>%
+  left_join(cats, 'motif') -> potential.novel
 
 write_tsv(potential.novel, 'data/J_novel/potentially-novel-motifs.tsv')
 
