@@ -49,11 +49,12 @@ potential.novel %>%
   )) %>%
   separate(motif.ko, c('term', 'side'), sep = '_') %>%
   select(motif, category, term, side) %>%
-  left_join(ko.path, 'term') -> motif.path
+  left_join(ko.path, 'term') %>%
+  drop_na(pathway) -> motif.path
 
 write_tsv(motif.path, 'data/K_motif-path.tsv')
 ################################################################################
-# Associaiton to positions and species
+# Association to positions and species
 
 potential.novel %>%
   select(motif, category) %>%
