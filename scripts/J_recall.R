@@ -236,22 +236,22 @@ list(ranges, ranges2) %>%
       summarize(
         no.hits = n(),
         evalue.sum = sum(evalue),
-        cmsearch.fdr = evalue.sum / no.hits
+        expected = evalue.sum / no.hits
       )
   }) %>%
   invoke(.f = left_join, by = c('name', 'rfam')) %>%
-  arrange(cmsearch.fdr.y) %>%
+  arrange(expected.y) %>%
   transmute(
     name, rfam,
     #
     'CMsearch hits' = as.integer(no.hits.x),
     'Sum of E-Values' = evalue.sum.x,
-    'FDR' = cmsearch.fdr.x,
+    'Mean E-Value' = expected.x,
     #
     'Hits in search regions' = as.integer(replace_na(no.hits.y, 0)),
     'Corresponding E-Values' = evalue.sum.y,
-    'Expected FDR for CMfinder' = cmsearch.fdr.y
-  ) -> rfam.fdr
+    'Corresponding Mean' = expected.y
+  ) -> rfam.expected
 
 ################################################################################
 # Compute overlaps, but only per group to prevent erroneous multiple counts
@@ -318,7 +318,7 @@ overlaps %>%
     rfam = replace_na(rfam, 'Terminator'),
     'Overlaps motif' = 'yes'
   ) %>%
-  right_join(rfam.fdr, 'rfam') %>%
+  right_join(rfam.expected, 'rfam') %>%
   left_join(
     rfam.types %>%
       select(name = Family, rfam.type = type),
@@ -363,9 +363,9 @@ recall.single.overlap %>%
     Family = name,
     Name = rfam,
     Type = replace_na(rfam.type, 'Terminator'),
-    `CMsearch hits`, `Sum of E-Values`, `FDR`,
+    `CMsearch hits`, `Sum of E-Values`, `Mean E-Value`,
     `Hits in search regions`, `Corresponding E-Values`,
-    `Expected FDR for CMfinder`,
+    `Corresponding Mean`,
     `Overlaps motif`,
     'CMfinder sense recall' = sense.recall,
     'Anti-sense recall' = anti.recall
@@ -377,40 +377,56 @@ recall.full %>%
 ################################################################################
 # Plot FDR expected for CMsearch
 
+set.seed(123)
 recall.full %>%
-  select(Name, Type, 'CMsearch FDR, overall' = FDR,
-         'FDR within search regions' = `Expected FDR for CMfinder`) %>%
+  select(
+    Name, Type,
+    'CMsearch entire genome' = `Mean E-Value`,
+    'Within search regions' = `Corresponding Mean`
+  ) %>%
   drop_na %>%
   gather('k', 'v', - c(Name, Type)) %>%
   mutate(Type = fct_reorder(Type, v)) %>%
   ggplot(aes(Type, v, color = k, group = paste(Type, k))) +
   geom_boxplot(position = position_dodge(preserve = 'single')) +
+  geom_point(
+    alpha = 0.5,
+    size = 3,
+    position = position_jitterdodge(jitter.width = 0.2),
+    show.legend = FALSE
+  ) +
   geom_hline(color = 'red', yintercept = 1e-3) +
   annotate('text',
            x = 0.5, y = 0.2, hjust = 0,
-           label = 'FDR = 0.001',
+           label = '0.001',
            color = 'red', size = 5) +
   ggsci::scale_color_jama(name = NULL) +
   xlab('RNA family') +
-  ylab('FDR estimate\nSum of E-values over no. CMsearch hits') +
+  ylab('Mean E-Value\nSum of E-values over no. CMsearch hits') +
   scale_y_log10() +
   guides(color = guide_legend(direction = 'vertical')) +
   theme_bw(18) +
   theme(legend.position = 'bottom') -> p1
 
 
-
 ################################################################################
 # Recall stats
 
+set.seed(123)
 recall.full %>%
   filter(`Overlaps motif` == 'yes') %>%
   gather('recall', 'v', c(`CMfinder sense recall`, `Anti-sense recall`)) %>%
   mutate(Type = fct_reorder(Type, v, .fun = max)) %>%
   ggplot(aes(Type, v, color = fct_rev(recall))) +
   geom_boxplot() +
+  geom_point(
+    alpha = 0.5,
+    size = 3,
+    position = position_jitterdodge(jitter.width = 0.2),
+    show.legend = FALSE
+  ) +
   xlab('RNA family') +
-  ylab('Recall of CMfinder strucutres positions\nrelative to CMsearch hits in search regions') +
+  ylab('Recall of CMsearch hits in search regions') +
   scale_y_continuous(breaks = seq(0, 1, .1)) +
   scale_color_manual(values = c('blue', 'red'), name = NULL) +
   # ggsci::scale_color_d3(name = NULL) +
