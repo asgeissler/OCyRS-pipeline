@@ -49,8 +49,7 @@ potential.novel %>%
   )) %>%
   separate(motif.ko, c('term', 'side'), sep = '_') %>%
   select(motif, category, term, side) %>%
-  left_join(ko.path, 'term') %>%
-  drop_na(pathway) -> motif.path
+  left_join(ko.path, 'term') -> motif.path
 
 write_tsv(motif.path, 'data/K_motif-path.tsv')
 ################################################################################
@@ -78,6 +77,7 @@ left_join(
   potential.novel %>%
     count(category, name = 'potential.novel.motifs'),
   motif.path %>%
+    drop_na(pathway) %>%
     select(motif, category) %>%
     unique %>%
     count(category, name = 'motifs.with.pathway'),
