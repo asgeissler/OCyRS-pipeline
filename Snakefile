@@ -80,7 +80,8 @@ rule all:
         # predict novel motifs
         'data/J_novel/potentially-novel-motifs.tsv',
         # Associate potentially novel motifs to pathways as species information
-        'data/K_motif-path.tsv'
+        'data/K_motif-path.tsv',
+        'data/K2_motifs.tsv'
   
   
   

@@ -120,3 +120,6 @@ J_novel:
     cpus: 16
     mem: 16GB
     time: 0-01:00:00
+
+K2_GC:
+    cpus: 8

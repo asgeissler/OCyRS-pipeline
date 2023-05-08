@@ -17,3 +17,16 @@ rule K_pathways:
     conda: 'renv'
     script:
         '../scripts/K_pathways.R'
+
+# Complement GC of motif alignments
+rule K2_GC:
+    input: 
+        'data/J_novel/potentially-novel-motifs.tsv'
+        # dependency to stockholm files is implicit
+    output:
+          'data/K2_motifs.tsv'
+    container: 'renv/renv.sif'
+    conda: 'renv'
+    threads: 8
+    script:
+        '../scripts/K2_GC.R'
