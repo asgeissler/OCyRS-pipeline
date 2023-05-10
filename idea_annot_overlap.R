@@ -104,25 +104,90 @@ dat <- bind_rows(
 ################################################################################
 
 dat %>%
-  drop_na %>%
   # filter(!complete.cases(.))
-  as_granges() %>%
+  drop_na %>%
+  as_granges() -> dat.ranges
+
+# dat.ranges %>%
+#   filter(x != 'Genbank annotation') %>%
+#   reduce_ranges_directed() %>%
+#   mutate(x = 'proGenomes+Rfam') %>%
+#   c(dat.ranges) %>%
+dat.ranges %>%
   mutate(len = width(.), x.strand = strand) -> dat.ranges
 
 dat.ranges %>%
   mutate(row = 1:n()) %>%
-  join_overlap_intersect(., .) %>%
+  join_overlap_intersect_directed(., .) %>%
   mutate(
-    m = ifelse(x.strand.x. == x.strand.y, 'sense', 'anti-sense'),
+    m = ifelse(x.strand.x == x.strand.y, 'sense', 'anti-sense'),
     jac = width / (len.x + len.y - width)
   ) -> dat2
 
 
 ################################################################################
+# Compile overlap stats
+
 dat2 %>%
-  filter
-################################################################################
-################################################################################
+  as_tibble() %>%
+  filter(m == 'sense') %>%
+  # Lookup species name
+  left_join(
+    xs.chr,
+    c('seqnames' = 'tax.bio.chr')
+  ) %>%
+  left_join(
+    tibble(
+      tax.bio = names(xs),
+      tax = xs
+    ),
+    'tax.bio'
+  ) %>%
+  # Ignore overlaps between annotations from same origin
+  filter(x.x != x.y) %>%
+  # Largest similarity of annotations in x to y
+  group_by(tax, row.x, x.x, x.y, m) %>%
+  summarize(jac = max(jac)) %>%
+  ungroup %>%
+  # de-duplicate pairs of same jaccard
+  count(tax, x.x, x.y, m, jac) %>%
+  # Compare to overall number of annotations in x
+  left_join(
+    dat.ranges %>%
+      as_tibble() %>%
+      # Lookup species name
+      left_join(
+        xs.chr,
+        c('seqnames' = 'tax.bio.chr')
+      ) %>%
+      left_join(
+        tibble(
+          tax.bio = names(xs),
+          tax = xs
+        ),
+        'tax.bio'
+      ) %>%
+      count(tax, x, name = 'nannot'),
+    c('x.x' = 'x', 'tax')
+  ) %>%
+  #
+  filter(jac >= .9) %>%
+  group_by(tax, x.x, x.y, nannot) %>%
+  summarize(n2 = sum(n)) %>%
+  mutate(prop = n2 / nannot * 100) %>%
+  # average
+  group_by(x.x, x.y) %>%
+  summarize(
+    m = mean(prop),
+    s = sd(prop)
+  ) %>%
+  ungroup %>%
+  transmute(
+    '↓ compared to →' = x.x,
+    y = x.y,
+    lab = sprintf('%.1f ±%.1f', m, s)
+  ) %>%
+  spread(y, lab, fill = '-')
 
-
+################################################################################
 
