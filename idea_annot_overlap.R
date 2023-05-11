@@ -185,7 +185,7 @@ dat2 %>%
   transmute(
     '↓ compared to →' = x.x,
     y = x.y,
-    lab = sprintf('%.1f ±%.1f', m, s)
+    lab = sprintf('%.1f%% ±%.1f', m, s)
   ) %>%
   spread(y, lab, fill = '-')
 
