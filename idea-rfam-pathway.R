@@ -62,6 +62,23 @@ list(
 ################################################################################
 
 dat %>%
+  mutate(prop = `KEGG orthologs in pathway with structure` / `KEGG orthologs in pathway` * 100) %>%
+  select(pathway, type, prop) %>%
+  spread(type, prop) %>%
+  mutate_if(is.numeric, replace_na, 0) %>%
+  ggplot(aes(Rfam, `Candidate motif`)) +
+  geom_point() +
+  ggtitle(
+    'Orthologs with adjacent strucutres',
+    'Proportion in number of KEGG orthologs annotated in pathway'
+  ) +
+  theme_bw(18)
+  mutate_
+  head
+
+################################################################################
+
+dat %>%
   gather('k', 'v', - c( pathway, type )) %>%
   mutate(pathway = fct_reorder(pathway, v)) %>%
   ggplot(aes(pathway, v, fill = k)) +
@@ -69,7 +86,7 @@ dat %>%
   facet_wrap(~ type) -> p
 
 
-ggsave('baz.jpeg', p)
+ggsave('baz.jpeg')
 
 ################################################################################
 
