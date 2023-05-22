@@ -31,6 +31,7 @@ include: 'rules/H_scores.smk'
 include: 'rules/I_fdr.smk'
 include: 'rules/J_recall.smk'
 include: 'rules/K_pathways.smk'
+include: 'rules/L_cluster.smk'
 
 # Target rules
 # Initial proGenomes download is separate to keep remaining rules streamlined
@@ -81,7 +82,9 @@ rule all:
         'data/J_novel/potentially-novel-motifs.tsv',
         # Associate potentially novel motifs to pathways as species information
         'data/K_motif-path.tsv',
-        'data/K2_motifs.tsv'
+        'data/K2_motifs.tsv',
+        # CMsearch novel motifs (in search regions only) for clustering
+        'data/L_cmsearch-regions/done.txt'
   
   
   
