@@ -68,8 +68,9 @@ rule L_cmsearch_agg:
         L_agg
     output:
         touch('data/L_cmsearch-regions/done.txt')
-        
-        
+
+
+
 rule L_collect:
     input:
         'data/L_cmsearch-regions/done.txt',
@@ -83,13 +84,14 @@ rule L_collect:
     threads: 32
     script:
       '../scripts/L_rel-motif-pos.R'
-      
-      
+
+
+
 rule L_precluster:
     input:
         'data/L_cmsearch-rel-pos.tsv.gz',
         'data/L_motif-aln-rel-pos.tsv.gz'
-     output: 
+    output: 
         'data/L_motif-similarity.jpg',
         'data/L_motif-similarity.tsv',
         'data/L_cmsearch-stat.jpg', 
