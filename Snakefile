@@ -84,7 +84,9 @@ rule all:
         'data/K_motif-path.tsv',
         'data/K2_motifs.tsv',
         # CMsearch novel motifs (in search regions only) for clustering
-        'data/L_cmsearch-regions/done.txt'
+        'data/L_cmsearch-regions/done.txt',
+        'data/L_motif-aln-rel-pos.tsv.gz',
+        'data/L_motif-similarity.tsv',
   
   
   

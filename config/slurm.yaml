@@ -3,6 +3,7 @@ __default__:
     job-name: '{rule}'
     cpus: 1
     mem: 8GB
+    nice: 5
     partition: bullseye
     output: 'slurmlogs/{rule}_$(date "+%Y-%m-%d_%H-%M-%S")_job%j.out.txt'
     error: 'slurmlogs/{rule}_$(date "+%Y-%m-%d_%H-%M-%S")_job%j.err.txt'
@@ -123,3 +124,17 @@ J_novel:
 
 K2_GC:
     cpus: 8
+
+
+L_cmsearch:
+    cpus: 1
+    mem: 8GB
+    time: 1-00:00:00
+    nice: 100
+
+
+L_collect:
+    cpus: 32 # a lot of files to parse
+    mem: 20GB
+    time: 03:00:00
+    
