@@ -147,7 +147,7 @@ aln.cmsearch.cmp |>
 
 aln.cmsearch.cmp |>
   filter(motif.x == motif.y, region.x == region.y) |>
-  filter(jaccard >= .8, evalue <= 0.001) |>
+  filter(jaccard >= .9, evalue <= 0.001) |>
   group_by(motif = motif.x) |>
   summarize(
     gather.score = min(score),
