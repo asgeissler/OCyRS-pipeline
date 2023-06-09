@@ -80,8 +80,8 @@ xs.ranges %>% map(length)
 
 venn::venn(
   list(
-    a5 = xs.ranges$K05585@seqnames@values,
-    a6 = xs.ranges$K02906@seqnames@values
+    a85 = xs.ranges$K05585@seqnames@values,
+    a06 = xs.ranges$K02906@seqnames@values
   )
 )
 # - 178 pairs on same chromosome
@@ -92,8 +92,99 @@ venn::venn(
 ################################################################################
 #Q3 distance between anchors
 
-foo <- plyranges::add_nearest_distance(xs.ranges$K05585, xs.ranges$K02906) 
+gene.dist <- plyranges::add_nearest_distance(xs.ranges$K05585, xs.ranges$K02906) %>%
+  filter(!is.na(distance))
 
-foo$distance %>% summary
-# Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
-#     245     392     707  265100    1174 5336622      16 
+gene.dist$distance %>% summary
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#     245     392     707  265100    1174 5336622  
+
+################################################################################
+# Follow-up question:
+# What is the distance and motif present distribution per species?
+
+
+tax <-
+  'data/A_representatives/taxonomy.tsv' |>
+  read_tsv()
+
+
+list( 
+  xs.ranges %>%
+    # extract tax.bio for genes
+    map(~ GenomicRanges::seqnames(.x)) %>%
+    map(as.character) %>%
+    map(str_remove, '\\.[^.]*$') %>%
+    map2(names(.), ~ tibble(
+      tax.bio = .x,
+      x = sprintf('Gene-copies of %s', .y),
+      n = 1
+    )) %>%
+    bind_rows() %>%
+    group_by(tax.bio, x) %>%
+    summarize(n = sum(n)) %>%
+    ungroup %>%
+    spread(x, n),
+  
+  tibble(
+    tax.bio = GenomicRanges::seqnames(gene.dist) |>
+      as.character() |>
+      str_remove('\\.[^.]*$'),
+    'Distance gene pair' = gene.dist$distance
+  ) %>%
+    group_by(tax.bio) %>%
+    summarize_all(min) %>%
+    ungroup,
+  
+  aln.pos.range %>%
+    as_tibble() %>%
+    mutate(
+      tax.bio = seqnames %>%
+        as.character() %>%
+        str_remove('\\.[^.]*$'),
+      n = 1
+    ) %>%
+    group_by(tax.bio, motif) %>%
+    summarize(n = sum(n)) %>%
+    ungroup %>%
+    mutate(x = paste('No. motif pos', motif)) %>%
+    select(- motif) %>%
+    spread(x, n)
+) %>%
+  purrr::reduce(.f = full_join, by = 'tax.bio') %>%
+  left_join(tax, 'tax.bio') -> followup
+  
+View(followup)
+
+# - 195 genome have at least one copy of either ortholog gene
+# - 1 has 2 gene copies of the K02906 and a different genome has 2 copies for K05585
+# - 178 genomes have both genes on the same contig/choromosome
+# 
+# - 4 genomes have only a single copy of either but not both (xor) gene
+# - 2 of these 4 genomes have the K05585_upstream.fna.motif.h1_3
+# 
+# - the remaining 13 genome have both genes but on different contains -> unknown distance
+# - one of the 13 has K02906_upstream.fna.motif.h1_2
+
+
+followup %>% 
+  drop_na(`Distance gene pair`) %>%
+  mutate(
+    foo = case_when(
+    !is.na(`No. motif pos K02906_upstream.fna.motif.h1_2`) & !is.na(`No. motif pos K05585_upstream.fna.motif.h1_3`) ~ 'both motifs',
+    !is.na(`No. motif pos K02906_upstream.fna.motif.h1_2`) &  is.na(`No. motif pos K05585_upstream.fna.motif.h1_3`) ~ 'either motif',
+     is.na(`No. motif pos K02906_upstream.fna.motif.h1_2`) & !is.na(`No. motif pos K05585_upstream.fna.motif.h1_3`) ~ 'either motif',
+    TRUE ~ 'neither motif'
+    )
+  ) %>%
+  # count(foo)
+#  both motifs      48
+#  either motif      4
+#  neither motif   126
+  ggplot(aes(foo, `Distance gene pair`)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.1, color = 'blue' , alpha = .7) +
+  scale_y_log10() +
+  xlab(NULL) +
+  theme_bw(18)
+
