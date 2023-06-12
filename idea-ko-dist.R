@@ -66,6 +66,11 @@ xs.genes <-
 # all gene coordinates
 all.genes <- read_tsv('data/A_representatives/genes.tsv.gz')
 
+all.genes.ranges <-
+  all.genes |>
+  select(seqnames = tax.bio.chr, start, end, strand, gene = tax.bio.gene) |>
+  as_granges()
+
 xs.ranges <-
   xs.genes |>
   map(~ tibble(tax.bio.gene = .x)) |>
@@ -188,3 +193,45 @@ followup %>%
   xlab(NULL) +
   theme_bw(18)
 
+
+################################################################################
+# Follow-up question:
+# Those with both: Is there a correlation between adjacency and distance?
+
+with.both <- as.character(seqnames(gene.dist))
+
+
+xs.ranges %>%
+  set_names(NULL) %>%
+  invoke(.f = plyranges::pair_nearest) %>%
+  as_tibble %>%
+  transmute(
+    seqnames = granges.x.seqnames,
+    start = pmin(granges.x.end, granges.y.end) + 1,
+    end = pmax(granges.x.start, granges.y.start) - 1,
+    strand = '*'
+  ) %>%
+  as_granges -> min.gaps
+
+
+
+join_overlap_intersect(min.gaps, all.genes.ranges) %>%
+  seqnames() %>%
+  as.character() %>%
+  str_remove('\\.[^.]*$') %>%
+  unique -> not.adj
+
+followup %>%
+  select(
+    tax.bio,
+    `Distance gene pair`,
+  ) %>%
+  drop_na %>%
+  mutate(x = ifelse(
+    tax.bio %in% not.adj,
+    "Not adjacent",
+    "Adjacent"
+  )) %>%
+  ggplot(aes(x, `Distance gene pair`)) +
+  geom_boxplot() +
+  scale_y_log10()
