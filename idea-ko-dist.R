@@ -222,16 +222,27 @@ join_overlap_intersect(min.gaps, all.genes.ranges) %>%
   unique -> not.adj
 
 followup %>%
-  select(
-    tax.bio,
-    `Distance gene pair`,
+  drop_na(`Distance gene pair`) %>%
+  mutate(
+    foo = case_when(
+    !is.na(`No. motif pos K02906_upstream.fna.motif.h1_2`) & !is.na(`No. motif pos K05585_upstream.fna.motif.h1_3`) ~ 'both motifs',
+    !is.na(`No. motif pos K02906_upstream.fna.motif.h1_2`) &  is.na(`No. motif pos K05585_upstream.fna.motif.h1_3`) ~ 'either motif',
+     is.na(`No. motif pos K02906_upstream.fna.motif.h1_2`) & !is.na(`No. motif pos K05585_upstream.fna.motif.h1_3`) ~ 'either motif',
+    TRUE ~ 'neither motif'
+    )
   ) %>%
-  drop_na %>%
+  # nrow
   mutate(x = ifelse(
     tax.bio %in% not.adj,
     "Not adjacent",
     "Adjacent"
-  )) %>%
-  ggplot(aes(x, `Distance gene pair`)) +
+  )) -> baz
+
+baz %>%
+  ggplot(aes(x, `Distance gene pair`, group = paste(x, foo), color = foo)) +
   geom_boxplot() +
-  scale_y_log10()
+  geom_label(aes(label = n, y = 1e4),
+             position = position_dodge(width = .5),
+             data = count(baz, foo, x)) +
+  scale_y_log10() +
+  xlab(NULL)
