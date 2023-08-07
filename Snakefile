@@ -32,6 +32,7 @@ include: 'rules/I_fdr.smk'
 include: 'rules/J_recall.smk'
 include: 'rules/K_pathways.smk'
 include: 'rules/L_cluster.smk'
+include: 'rules/M_conformation.smk'
 
 # Target rules
 # Initial proGenomes download is separate to keep remaining rules streamlined
@@ -86,4 +87,8 @@ rule all:
         # CMsearch novel motifs (in search regions only) for clustering
         'data/L_cmsearch-regions/done.txt',
         'data/L_motif-aln-rel-pos.tsv.gz',
-        'data/L_motif-similarity.tsv'
+        'data/L_motif-similarity.tsv',
+        # Towards identifying structures with alternative conformations
+        'data/M_alignments-candidates/',
+        'data/M_alignments-Rfam/',
+        'data/M_RNAalifold.done',
