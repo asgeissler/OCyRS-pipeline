@@ -138,3 +138,8 @@ L_collect:
     mem: 20GB
     time: 03:00:00
     
+M_export:
+    cpus: 16
+    mem: 20GB
+    time: 03:00:00
+    

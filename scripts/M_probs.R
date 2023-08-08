@@ -8,8 +8,8 @@ library(furrr)
 # Rfam files, eg with implicit dependency via
 # data/G_rfam-cmsearch.tsv.gz
 
-cpus <- as.integer(unlist(snakemake@threads))
-# cpus <- 20
+# cpus <- as.integer(unlist(snakemake@threads))
+cpus <- 20
 plan(multisession, workers = cpus)
 
 ################################################################################
@@ -229,7 +229,8 @@ cmp.tbl <-
 bps.pos <- with(cmp.tbl, list(
   mfe = future_map(mfe.structure, dotbracket),
   cmfinder = future_map(cmfinder.structure, dotbracket)
-))
+)) |>
+  map(set_names, cmp.tbl$model)
 
 cmp.tbl <-
   cmp.tbl |>
@@ -287,7 +288,7 @@ p3 <-
 # CMfinder vs MFE
 p4 <-
   cmp.tbl2 |>
-  ggplot(aes(bp.dist / (alignment.length ** 2), color = type)) +
+  ggplot(aes(bp.dist / (alignment.length), color = type)) +
   stat_ecdf(size = 1.2) +
   ggsci::scale_color_jama(name = NULL) +
   ylab('Empirical cumulative density') +
@@ -300,20 +301,150 @@ plot_grid(p1, p2, p3, p4,
 
 ggsave('foo.png', width = 16, height = 14)
 
+
+################################################################################
+# Comparison prob values of upper vs lower triangle, but for MFE only
+
+# Correlated prob of upper to lower values for mfe bp positions
+prop.fit <-
+  cmp.tbl2 |>
+  pull(model) |>
+  future_map(function(i) {
+    # i <- 'RF02698'
+    # i <- 'K01082_upstream.fna.motif.h1_5'
+    # print(i)
+    mat <- bp.probs[[i]]
+    mat <- mat ** 2
+    mfe <- bps.pos$mfe[[i]]
+    if(length(mfe) <= 5) {
+      NA_real_
+    } else {
+      mask <- invoke(rbind, mfe)
+      mask2 <- mask[, c(2, 1)]
+      
+      foo <- lm(mat[mask] ~ mat[mask2] - 1) |> summary()
+      foo$r.squared
+    }
+  }) |>
+  unlist()
+
+sprintf(
+  'R2: %.3f ± %.3f',
+  mean(prop.fit, na.rm = TRUE), sd(prop.fit, na.rm = TRUE)
+)
+# "R2: 0.972 ± 0.086"
+
 ################################################################################
 
 cmp.tbl2 |>
-  mutate(i = 1:n()) |>
-  filter(model == 'K02906_upstream.fna.motif.h2_5') |>
-  pull(i) -> i
-mat <- bp.probs[[i]]
-f <- upper.tri
-f2 <- lower.tri
+  filter(type != 'Rfam') |>
+  mutate(
+    foo = - mfe.kcal.mol / (alignment.length ** 2),
+    bar = ensemble.diversity / (alignment.length ** 2),
+    mfe.bp = str_count(mfe.structure, '\\(') / alignment.length
+  ) -> foo
+baz <- with(foo, cor.test(foo, mfe.bp))$estimate
 
-mat[f2(mat)] <- mat[f(mat)]
-
-hist(1 - apply(1-mat, 1, prod))
-
+foo |>
+  ggplot(aes(foo, mfe.bp, alpha = bar, color = type)) +
+  geom_point() +
+  ggsci::scale_color_jama(name = NULL) +
+  geom_smooth(color = 'blue', method = 'lm', se = FALSE,
+              show.legend = FALSE) +
+  annotate('text', .015, .1,
+           label = sprintf('Pearson cor: %.2f', baz),
+           size = 5, color = 'blue') +
+  scale_alpha(name = 'Ensemble diversity / Alignment length ^ 2') +
+  xlab('- Free energy [kcal / mol] / Alignment length ^ 2') +
+  ylab('No. bps in MFE structure / Alignmnet length') +
+  theme_bw(16) +
+  theme(
+    legend.position = 'bottom',
+    legend.direction = 'vertical',
+    legend.box = 'vertical'
+  ) -> q1
 
 ################################################################################
 
+# make matrix symmetric, keeping the values specified by f (upper/lower)
+make.sym <- function(mat, f = upper.tri) {
+  # mat <- bp.probs[[i]]
+  # f <- upper.tri
+  mask <- f(mat)
+  keep <- mat[mask]
+  mat <- t(mat)
+  mat[mask] <- keep
+  assertthat::assert_that(isSymmetric(mat))
+  
+  mat
+}
+
+# Compare overall bp probability to prob value of MFE structure
+prop.helper <- function(i, rel = 'mfe') {
+  # i <- 'RF02698'
+  mat <- bp.probs[[i]] ** 2
+  ss <- bps.pos[[rel]][[i]]
+  
+  # sum of bp probabilities
+  over <- sum(mat[upper.tri(mat)])
+  # probability according to structure
+  mask <- invoke(rbind, ss)
+  vs <- sum(mat[mask])
+  
+  mean(vs / over, na.rm = TRUE)
+}
+  
+proportion.tbl <-
+  cmp.tbl2 |>
+  mutate(
+    prop.mfe = future_map(model, prop.helper, rel = 'mfe') |> unlist(),
+    prop.cmfinder = future_map(model, prop.helper, rel = 'cmfinder') |> unlist()
+  )
+
+################################################################################
+
+scores <-
+  'data/H_scores.tsv' |>
+  read_tsv() |>
+  filter(dir %in% c('D_search-seqs', 'G_rfam-bacteria-seeds'))
+
+proportion.tbl |>
+  filter(type != 'Rfam') |>
+  mutate(
+    bar = ensemble.diversity / (alignment.length ** 2),
+    mfe.bp = str_count(mfe.structure, '\\(') / alignment.length
+  ) |> 
+  left_join(scores, c('model' = 'motif')) -> foo
+
+foo |>
+  ggplot(aes(prop.mfe, mfe.bp,
+             group = type,
+             alpha = bar,
+             color = type)) +
+  geom_point() +
+  scale_alpha(name = 'Ensemble diversity / Alignment length ^ 2') +
+  ggsci::scale_color_jama(name = NULL) +
+  xlab('Proportion of bp probaiblities in MFE') +
+  ylab('No. bps in MFE structure / Alignmnet length') +
+  theme_bw(16) +
+  theme(
+    legend.position = 'bottom',
+    legend.direction = 'vertical',
+    legend.box = 'vertical'
+  ) -> q2
+
+q2 <- ggExtra::ggMarginal(q2, groupFill = TRUE)
+
+plot_grid(q1, q2,
+          labels = 'AUTO', label_size = 16)
+
+ggsave('foo2.png', width = 20, height = 10, bg = 'white')
+
+################################################################################
+foo  |>
+  filter(
+    prop.mfe <= .5,
+    mfe.bp >= .05
+  ) |>
+  arrange(desc(bar)) |>
+  View()
