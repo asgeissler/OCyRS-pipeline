@@ -91,4 +91,4 @@ rule all:
         # Towards identifying structures with alternative conformations
         'data/M_alignments-candidates/',
         'data/M_alignments-Rfam/',
-        'data/M_RNAalifold.done',
+        'data/M_PETfold.done',
