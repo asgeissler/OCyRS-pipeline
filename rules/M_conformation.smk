@@ -20,30 +20,17 @@ checkpoint M_prepare:
 
 rule M_petfold:
     input:
-        aln = 'data/M_alignments-{dir}/{motif}/aln.fna',
-        struct = 'data/M_alignments-{dir}/{motif}/structure.txt'
-        # optional:
-        #'data/M_alignments-{dir}/{motif}/tree.txt'
+        'data/M_alignments-{dir}/{motif}/aln.fna'
     output:
         rel = 'data/M_PETfold/{dir}/{motif}/reliabilities.txt',
         std = 'data/M_PETfold/{dir}/{motif}/output.txt'
     container: 'petfold-2.2.simg'
     shell:
         """
-        X='data/M_alignments-{wildcards.dir}/{wildcards.motif}/tree.txt'
-        # Optional check for Tree (not available for Rfam)
-        if [[ -f "$X" ]] ; then
-            opt="--settree $X"
-        else
-            opt=''
-        fi
-
-        PETfold $opt                  \
-            --setstruc {input.struct} \
-            --fasta {input.aln}       \
-            --ppfile {output.rel}     \
-            > {output.std}
-
+        (PETfold --fasta {input} --ppfile {output.rel} > {output.std}) || true
+        # graceful fail for the Rfam families with < 3 entires
+        touch {output.rel}
+        touch {output.std}
         """
 
 

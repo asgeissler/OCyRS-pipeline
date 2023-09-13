@@ -24,7 +24,7 @@ plan(multisession, workers = cpus)
 ###############################################################################
 # Helper for reading/writing
 
-worker <- function(in.sto,  out.aln, out.struct, ..., in.tree = NULL, out.tree = NULL) {
+worker <- function(in.sto,  out.aln, out.struct, in.tree = NULL, out.tree = NULL) {
   # in.sto <- 'data/G_rfam-bacteria-seeds/RF00001.sto'
   # in.sto <- 'data/F_cmfinder/D_search-seqs/K00003_upstream/K00003_upstream.fna.motif.h1_1'
   # in.tree <- 'data/C_shrink/K00003/output.tree'
@@ -90,7 +90,7 @@ tibble(
   rf = in.sto |>
     basename() |>
     str_remove('\\.sto'),
-  out.aln = sprintf('data/M_alignments-Rfam/%s/aln.fna', rf),
+  out.aln =    sprintf('data/M_alignments-Rfam/%s/aln.fna', rf),
   out.struct = sprintf('data/M_alignments-Rfam/%s/structure.txt', rf)
 ) |>
   select(- rf) |>
@@ -106,12 +106,12 @@ tibble(
     read_tsv() |>
     pull(motif),
   region = str_remove(motif, '.fna.motif.*'),
-  ortho = str_remove(region, '_[upstream]+$'),
-  in.sto = sprintf('data/F_cmfinder/D_search-seqs/%s/%s', region, motif),
-  in.tree = sprintf('data/C_shrink/%s/output.tree', ortho),
-  out.aln = sprintf('data/M_alignments-candidates/%s/aln.fna', motif),
+  ortho  = str_remove(region, '_[updownstream]+$'),
+  in.sto     = sprintf('data/F_cmfinder/D_search-seqs/%s/%s', region, motif),
+  in.tree    = sprintf('data/C_shrink/%s/output.tree', ortho),
+  out.aln    = sprintf('data/M_alignments-candidates/%s/aln.fna', motif),
   out.struct = sprintf('data/M_alignments-candidates/%s/structure.txt', motif),
-  out.tree = sprintf('data/M_alignments-candidates/%s/tree.txt', motif)
+  out.tree   = sprintf('data/M_alignments-candidates/%s/tree.txt', motif)
 ) |>
   select(- c(motif, region, ortho)) |>
   future_pwalk(worker)
