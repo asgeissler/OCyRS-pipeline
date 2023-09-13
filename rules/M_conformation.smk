@@ -54,3 +54,15 @@ rule M_alli:
         touch('data/M_PETfold.done')
 
 
+rule M_collect:
+    input:
+        'data/M_PETfold.done'
+    output:
+        'data/M_PETfold-ensemble.png',
+        'data/M_PETfold.tsv'
+    container: 'renv/renv.sif'
+    threads: 16
+    conda: 'renv'
+    script:
+        '../scripts/M_petfold-overview.R'
+

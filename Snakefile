@@ -92,3 +92,4 @@ rule all:
         'data/M_alignments-candidates/',
         'data/M_alignments-Rfam/',
         'data/M_PETfold.done',
+        'data/M_PETfold.tsv',
