@@ -58,7 +58,7 @@ rule M_collect:
     input:
         'data/M_PETfold.done'
     output:
-        'data/M_PETfold-ensemble.png',
+        'data/M_PETfold-stats.png',
         'data/M_PETfold.tsv'
     container: 'renv/renv.sif'
     threads: 16

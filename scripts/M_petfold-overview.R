@@ -216,6 +216,7 @@ petfold <-
 write_tsv(petfold, 'data/M_PETfold.tsv')
 
 ################################################################################
+# Boxplot Ensemble
 
 petfold |>
   left_join(
@@ -233,12 +234,156 @@ petfold |>
   geom_boxplot() +
   scale_y_log10() +
   xlab(NULL) +
-  ylab('Length-normalized ensemble diversity (PETfold)') +
+  ylab('Length-normalized ensemble diversity') +
   coord_flip() +
   ggsci::scale_color_jama(name = NULL) +
   theme_bw(18) +
-  theme(legend.position = 'bottom')
+  theme(legend.position = 'bottom',
+        legend.direction = 'vertical') -> p1
 
-ggsave('data/M_PETfold-ensemble.png', width = 14, height = 8, dpi = 400)
+
+################################################################################
+# Boxplot scores
+
+petfold |>
+  left_join(
+    petfold |>
+      count(class),
+    'class'
+  ) |>
+  mutate(
+    xl = ifelse(class == 'CMfinder candidate', 'Predicted novel motif (this study)', ' Bacterial Rfam family') |>
+      as.factor(),
+    class = sprintf('%s (n=%g)', class, n) |>
+      fct_reorder(PETfold.score) |>
+      fct_rev()
+  ) |>
+  ggplot(aes(class, PETfold.score, color = xl)) +
+  geom_boxplot() +
+  # scale_y_log10() +
+  xlab(NULL) +
+  ylab('Length-normalized PETfold score') +
+  coord_flip() +
+  ggsci::scale_color_jama(name = NULL) +
+  theme_bw(18) +
+  theme(legend.position = 'bottom',
+        legend.direction = 'vertical') -> p2
+
+
+################################################################################
+################################################################################
+# helper for loading reliability matrix
+rel.mat <- function(path) {
+  # path <- 'data/M_PETfold/candidates/K00008_upstream.fna.motif.h1_2/reliabilities.txt'
+  lines <-
+    path |>
+    read_lines()
+  
+  # Expected alignment size
+  i <- lines[[1]] |> as.integer()
+  
+  # Load matrix
+  lines[-1] |>
+    I() |>
+    read_delim(delim = ' ', col_names = FALSE, skip_empty_rows = TRUE) |>
+    as.matrix() -> res
+  colnames(res) <- NULL
+  
+  # Last column in NA because all lines with a space -> remove
+  assertthat::assert_that(res[, ncol(res)] |> is.na() |> all())
+  res <- res[, - ncol(res)] 
+  
+  # remove last row
+  res <- res[-nrow(res), ]
+  assertthat::are_equal(dim(res), c(i, i))
+  return(res)
+}
+
+
+# Load reliability matrices
+'data/M_PETfold/*/*/reliabilities.txt' |>
+  Sys.glob() %>%
+  set_names(. |> dirname() |> basename()) |>
+  future_map(safely(rel.mat)) -> mats
+
+# Exclude those that did not have enough sequences for PETfold to run
+# mats |>
+#   map('error') |>
+#   discard(is.null) |>
+#   length()
+# 146
+mats |>
+  map('result') |>
+  discard(is.null) -> mats
+  
+
+mats |>
+  map(isSymmetric) |>
+  unlist() |>
+  table()
+# TRUE 
+# 1350 
+
+################################################################################
+################################################################################
+# Ratio for scores on bp vs total sum
+
+bps <-
+  petfold |>
+  with(set_names(PETfold.structure, motif)) |>
+  map(dotbracket) |>
+  map(~ invoke(rbind, .x))
+
+
+petfold |>
+  pull(motif) |>
+  map(~ mats[[.x]][bps[[.x]]] |> sum()) |>
+  unlist() -> struct.sum
+
+petfold |>
+  pull(motif) |>
+  map(function(i) {
+    x <- mats[[i]]
+    sum(x[upper.tri(x)])
+  }) |>
+  unlist() -> upper.sum
+
+petfold |>
+  transmute(
+    class, motif,
+    PETfold.score, PETfold.ensemble,
+    struct.sum = struct.sum,
+    upper.sum = upper.sum,
+    ratio = struct.sum / upper.sum
+  ) |>
+  left_join(
+    petfold |>
+      count(class),
+    'class'
+  ) |>
+  mutate(
+    xl = ifelse(class == 'CMfinder candidate', 'Predicted novel motif (this study)', ' Bacterial Rfam family') |>
+      as.factor(),
+    class = sprintf('%s (n=%g)', class, n) |>
+      fct_reorder(ratio) |>
+      fct_rev()
+  ) |>
+  ggplot(aes(class, ratio, color = xl)) +
+  geom_boxplot() +
+  xlab(NULL) +
+  ylab('Base-pairing reliability ratio\nPaired positions vs total sum') +
+  coord_flip() +
+  ggsci::scale_color_jama(name = NULL) +
+  theme_bw(18) +
+  theme(legend.position = 'bottom',
+        legend.direction = 'vertical') -> p3
+
+
+################################################################################
+################################################################################
+plot_grid(p2, p1, p3, nrow = 1,
+          labels = 'AUTO', label_size = 20)
+
+ggsave('data/M_PETfold-stats.png', width = 28, height = 10, dpi = 400)
 
 ################################################################################
