@@ -9,6 +9,7 @@ muscle:*
 rscape:*
 viennarna:*
 */*.sif
+petfold-*.simg
 
 # Do not store binary data
 .snakemake
@@ -45,7 +46,8 @@ snakelogs
 .LSOverride
 
 # Icon must end with two \r
-Icon
+Icon
+
 
 # Thumbnails
 ._*

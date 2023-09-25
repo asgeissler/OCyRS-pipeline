@@ -31,7 +31,6 @@ include: 'rules/H_scores.smk'
 include: 'rules/I_fdr.smk'
 include: 'rules/J_recall.smk'
 include: 'rules/K_pathways.smk'
-include: 'rules/L_cluster.smk'
 include: 'rules/M_conformation.smk'
 
 # Target rules
@@ -84,10 +83,6 @@ rule all:
         # Associate potentially novel motifs to pathways as species information
         'data/K_motif-path.tsv',
         'data/K2_motifs.tsv',
-        # CMsearch novel motifs (in search regions only) for clustering
-        'data/L_cmsearch-regions/done.txt',
-        'data/L_motif-aln-rel-pos.tsv.gz',
-        'data/L_motif-similarity.tsv',
         # Towards identifying structures with alternative conformations
         'data/M_alignments-candidates/',
         'data/M_alignments-Rfam/',
