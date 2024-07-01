@@ -4,8 +4,10 @@
 # 3. Alignment of the consensus structures
 #    (first export before extra container run)
 
-library(tidyverse)
+# FYI: This script runs some computations, but the plotting is in 
+# L_redundancy2, due to dependency on data from a RNAdistance run
 
+library(tidyverse)
 library(plyranges)
 
 library(conflicted)
@@ -18,11 +20,6 @@ conflicted::conflicts_prefer(dplyr::lag)
 
 conflicted::conflicts_prefer(base::union)
 conflicted::conflicts_prefer(base::setdiff)
-
-# Colorblind-friendly palettes of the Color Universal Design
-# https://riptutorial.com/r/example/28354/colorblind-friendly-palettes
-cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
-                "#0072B2", "#D55E00", "#CC79A7")
 
 ################################################################################
 # Straight-forward pipeline data loading
@@ -64,17 +61,9 @@ dat.no.crs.regions <-
   right_join(tibble(region = used.regions), 'region') |>
   mutate_at('n', replace_na, 0)
   
-p1.regionbar <-
-  dat.no.crs.regions |>
-  count(n) |>
-  ggplot(aes(n, nn)) +
-  geom_bar(stat = 'identity') +
-  geom_text(aes(label = nn),
-            size = 5,
-            nudge_y = 50) +
-  xlab('CRS in search region') +
-  ylab('No. search regions') +
-  theme_bw(18)
+dat.no.crs.regions |>
+  write_tsv('data/L1_redundancy/no.crs.regions.tsv')
+  
 
 ################################################################################
 ################################################################################
@@ -99,7 +88,7 @@ pr.species <-
 
 # the no. species per pr
 pr.no.species <-
-  pr.seq |>
+  pr.species |>
   count(motif)
 
 # all combinations of pairs, including self and symmetric case
@@ -128,15 +117,12 @@ pr.jaccard <-
   mutate(jaccard = shared / (n.x + n.y - shared))
 
 
-p2.jaccard <-
-  pr.jaccard |>
-  ggplot(aes(jaccard)) +
-  stat_ecdf() +
-  scale_x_continuous(breaks = seq(0, 1, .1)) +
-  scale_y_continuous(breaks = seq(0, 1, .1)) +
-  xlab('Jaccard similarity of species shared\nbetween CRSs detected within\nthe same search region') +
-  ylab('Empirical cumulative density') +
-  theme_bw(18)
+potential.redundant |>
+  write_tsv('data/L1_redundancy/potential.redundant.tsv')
+
+pr.jaccard |>
+  write_tsv('data/L1_redundancy/potential.redundant.jaccard.tsv')
+
 
 ################################################################################
 ################################################################################
@@ -168,6 +154,7 @@ mask <-
   join_overlap_intersect(regions.range) |>
   filter(dest == region) |>
   filter(width == hit)
+
 
 pos.range <-
   pos.range |>
@@ -258,19 +245,9 @@ rel.over <-
     x = overlap / len
   )
 
-p3.relover <-
-  rel.over |>
-  # ignore summetric A-B B-A comparisons for general overview of density
-  filter(pos.x < pos.y) |>
-  ggplot(aes(x)) +
-  stat_ecdf() +
-  scale_x_continuous(breaks = seq(0, 1, .1)) +
-  scale_y_continuous(breaks = seq(0, 1, .1)) +
-  geom_vline(xintercept = .9, color = 'red') +
-  geom_hline(yintercept = .15, color = 'red') +
-  xlab('Sequence overlap relative to\n shorter sequence length') +
-  ylab('Empirical cumulative density') +
-  theme_bw(18)
+rel.over |>
+  write_tsv('data/L1_redundancy/relative.overlaps.tsv')
+
 
 # proportions of alignment with which motif.x sequences overlap above cutoff
 aln.prop <-
@@ -281,19 +258,8 @@ aln.prop <-
   count(motif.x, motif.y, postotal.x, postotal.y) |>
   mutate(prop = n / postotal.x)
 
-
-p4.alnprop <-
-  aln.prop |>
-  ggplot(aes(prop)) +
-  stat_ecdf()  +
-  scale_x_continuous(breaks = seq(0, 1, .1)) +
-  scale_y_continuous(breaks = seq(0, 1, .1)) +
-  geom_vline(xintercept = .9, color = 'blue') +
-  geom_hline(yintercept = .6, color = 'blue') +
-  xlab('Proportion of alignment overlapped\n(with rel. overlap ≥ 0.9)') +
-  ylab('Empirical cumulative density') +
-  theme_bw(18)
-
+aln.prop |>
+  write_tsv('data/L1_redundancy/alignment.proportion.tsv')
 
 ################################################################################
 # list of motif groups that are potentially redundant to each other
@@ -371,38 +337,8 @@ redundant.candidates <-
     motif
   )
 
-
-################################################################################
-# some plot for those candidates
-
-p5.components <-
-  redundant.candidates |>
-  select(group, no.motifs) |>
-  unique() |>
-  count(no.motifs) |>
-  ggplot(aes(no.motifs, n)) +
-  geom_bar(stat = 'identity') +
-  geom_text(aes(label = n),
-            size = 5,
-            nudge_y = 2) +
-  annotate(
-    'text',
-    3.5, 30,
-    label = sprintf(
-      'Total candidate groups: %g\nCandidate redundant motifs: %g',
-      redundant.candidates |>
-        select(group) |>
-        unique() |>
-        nrow(),
-      redundant.candidates |>
-        nrow()
-    ),
-    size = 5,
-    hjust = 1
-  ) +
-  xlab('CRS in candidate redundant group') +
-  ylab('No. candidate redundant group') +
-  theme_bw(18)
+redundant.candidates |>
+  write_tsv('data/L1_redundancy/redundant.candidates.tsv')
 
 
 ################################################################################
@@ -468,7 +404,7 @@ rc.seq <-
 
 # save for later inspection
 rc.seq |>
-  write_tsv('foo.tsv')
+  write_tsv('data/L1_redundancy/redundant.candidates.consensus.tsv')
 
 ################################################################################
 
@@ -484,52 +420,9 @@ test.pairs |>
   mutate_at(c('filtered.consensus.x', 'filtered.consensus.y'), str_remove, '\\.+$') |>
   apply(1, str_c, collapse = '\n') |>
   str_c(collapse = '\n') |>
-  write_lines('foo.txt')
-
-
-#singularity exec -B $PWD:$PWD viennarna:2.6.3--py39pl5321h4e691d4_0  bash -c "cat foo.txt | RNAdistance -B > foo2.txt"
-
-rna.dist <-
-  'foo2.txt' |>
-  read_lines() |>
-  keep(str_detect, '^f:') |>
-  str_remove('f: ') |>
-  as.integer()
+  write_tsv('data/L1_redundancy/RNAdistance.input.txt')
 
 ################################################################################
-
-test.pairs |>
-  mutate(f = rna.dist) |>
-  arrange(f) |>
-  select(-c(consensus.x, consensus.y, keep.x, keep.y)) -> prelim
-prelim |>
-  # write_tsv('stefan.tsv')
-  View()
-
+# Stop here for RNAdistance rule to run
 ################################################################################
-prelim |>
-  ggplot(aes(f)) +
-  stat_ecdf() +
-  # scale_x_log10() +
-  # annotation_logticks(sides = 'b') +
-  xlab('Comparison consensus structures, RNAdistance') +
-  ylab('Empirical cumulative density') +
-  theme_bw(18)
-
-################################################################################
-################################################################################
-################################################################################
-################################################################################
-################################################################################
-################################################################################
-################################################################################
-
-cowplot::plot_grid(
-  p1.regionbar,
-  p2.jaccard,
-  p3.relover,
-  p4.alnprop,
-  p5.components,
-  labels = 'AUTO',
-  label_size = 20
-)
+# second part of script in L_redundancy2

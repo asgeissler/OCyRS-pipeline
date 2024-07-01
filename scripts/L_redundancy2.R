@@ -1,29 +1,136 @@
+# Part 2 (after RNAdistance run)
 # Assess redundancy of the novel CRSs by
 # 1. Phylogenetic similarity f contained species
 # 2. Overlap in sequence overlaps (relative to genomic coordinates)
 # 3. Alignment of the consensus structures
-#    (first export before extra container run)
 
 library(tidyverse)
-
-library(plyranges)
-
-library(conflicted)
-
-conflicts_prefer(dplyr::select)
-conflicts_prefer(dplyr::filter)
-conflicts_prefer(dplyr::rename)
-conflicted::conflicts_prefer(dplyr::first)
-conflicted::conflicts_prefer(dplyr::lag)
-
-conflicted::conflicts_prefer(base::union)
-conflicted::conflicts_prefer(base::setdiff)
 
 # Colorblind-friendly palettes of the Color Universal Design
 # https://riptutorial.com/r/example/28354/colorblind-friendly-palettes
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
                 "#0072B2", "#D55E00", "#CC79A7")
 
+################################################################################
+# continuously load intermediate results from part 1 of the script and make plots
+################################################################################
+
+dat.no.crs.regions <-
+  'data/L1_redundancy/no.crs.regions.tsv' |>
+  read_tsv()
+
+p1.regionbar <-
+  dat.no.crs.regions |>
+  count(n) |>
+  ggplot(aes(n, nn)) +
+  geom_bar(stat = 'identity') +
+  geom_text(aes(label = nn),
+            size = 5,
+            nudge_y = 50) +
+  xlab('CRS in search region') +
+  ylab('No. search regions') +
+  theme_bw(18)
+
+################################################################################
+
+potential.redundant <-
+  'data/L1_redundancy/potential.redundant.tsv' |>
+  read_tsv()
+pr.jaccard <-
+  'data/L1_redundancy/potential.redundant.jaccard.tsv' |>
+  read_tsv()
+
+p2.jaccard <-
+  pr.jaccard |>
+  ggplot(aes(jaccard)) +
+  stat_ecdf() +
+  scale_x_continuous(breaks = seq(0, 1, .1)) +
+  scale_y_continuous(breaks = seq(0, 1, .1)) +
+  xlab('Jaccard similarity of species shared\nbetween CRSs detected within\nthe same search region') +
+  ylab('Empirical cumulative density') +
+  theme_bw(18)
+
+
+################################################################################
+
+rel.over <-
+  'data/L1_redundancy/relative.overlaps.tsv' |>
+  read_tsv()
+
+p3.relover <-
+  rel.over |>
+  # ignore summetric A-B B-A comparisons for general overview of density
+  filter(pos.x < pos.y) |>
+  ggplot(aes(x)) +
+  stat_ecdf() +
+  scale_x_continuous(breaks = seq(0, 1, .1)) +
+  scale_y_continuous(breaks = seq(0, 1, .1)) +
+  geom_vline(xintercept = .9, color = 'red') +
+  geom_hline(yintercept = .15, color = 'red') +
+  xlab('Sequence overlap relative to\n shorter sequence length') +
+  ylab('Empirical cumulative density') +
+  theme_bw(18)
+
+
+################################################################################
+
+aln.prop <-
+  'data/L1_redundancy/alignment.proportion.tsv' |>
+  read_tsv()
+
+p4.alnprop <-
+  aln.prop |>
+  ggplot(aes(prop)) +
+  stat_ecdf()  +
+  scale_x_continuous(breaks = seq(0, 1, .1)) +
+  scale_y_continuous(breaks = seq(0, 1, .1)) +
+  geom_vline(xintercept = .9, color = 'blue') +
+  geom_hline(yintercept = .6, color = 'blue') +
+  xlab('Proportion of alignment overlapped\n(with rel. overlap ≥ 0.9)') +
+  ylab('Empirical cumulative density') +
+  theme_bw(18)
+
+################################################################################
+
+redundant.candidates <-
+  'data/L1_redundancy/redundant.candidates.tsv' |>
+  read_tsv()
+
+
+p5.components <-
+  redundant.candidates |>
+  select(group, no.motifs) |>
+  unique() |>
+  count(no.motifs) |>
+  ggplot(aes(no.motifs, n)) +
+  geom_bar(stat = 'identity') +
+  geom_text(aes(label = n),
+            size = 5,
+            nudge_y = 2) +
+  annotate(
+    'text',
+    3.5, 30,
+    label = sprintf(
+      'Total candidate groups: %g\nCandidate redundant motifs: %g',
+      redundant.candidates |>
+        select(group) |>
+        unique() |>
+        nrow(),
+      redundant.candidates |>
+        nrow()
+    ),
+    size = 5,
+    hjust = 1
+  ) +
+  xlab('CRS in candidate redundant group') +
+  ylab('No. candidate redundant group') +
+  theme_bw(18)
+
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
 ################################################################################
 # Straight-forward pipeline data loading
 
