@@ -2,6 +2,7 @@
 # 1. Phylogenetic similarity f contained species
 # 2. Overlap in sequence overlaps (relative to genomic coordinates)
 # 3. Alignment of the consensus structures
+#    (first export before extra container run)
 
 library(tidyverse)
 
@@ -412,7 +413,7 @@ p5.components <-
 
 # load consensus structure from the stockholm files
 
-consensus.helper <- function(motif) {
+consensus.helper <- function(motif, pattern = '^#=GC SS_cons +') {
   #'data/F_cmfinder/D_search-seqs/K02221_downstream/K02221_downstream.fna.motif.h1_1' |>
   'data/F_cmfinder/D_search-seqs/%s/%s' |>
     sprintf(
@@ -421,23 +422,50 @@ consensus.helper <- function(motif) {
     ) |>
     read_lines() |>
     # find consensus
-    keep(str_detect, '^#=GC SS_cons') |>
+    keep(str_detect, pattern) |>
     # remove marker and note
-    str_remove('^#=GC SS_cons *') |>
+    str_remove(pattern) |>
     # combine line
     str_c(collapse = '')
 }
 
 rc.seq <-
   redundant.candidates |>
-  mutate(consensus = motif |>
-           map(consensus.helper) |>
-           unlist()) |>
+  mutate(
+    consensus = motif |>
+      map(consensus.helper) |>
+      unlist(),
+    # columns to keep in alignment
+    keep = motif |>
+      map(consensus.helper, '^#=GC RF +') |>
+      unlist()
+  ) |>
   # tidy up dot-bracket
   mutate_at('consensus', str_replace_all, '<', '(') |>
   mutate_at('consensus', str_replace_all, '>', ')') |>
   mutate_at('consensus', str_replace_all, '[^()]', '.')
-  
+
+assertthat::are_equal(
+  rc.seq |> pull(consensus) |> nchar(),
+  rc.seq |> pull(keep) |> nchar()
+)
+
+# filter consensus sequence by 'keep' mask
+
+mask.helper <- function(x, mask) {
+  # keep only positions in x that have x in the mask
+  str_sub(
+    x,
+    str_locate_all(mask, '[xX]+') [[1]]
+  ) |>
+    str_c(collapse = '')
+}
+
+rc.seq <-
+  rc.seq |>
+  mutate(filtered.consensus = map2(consensus, keep, mask.helper) |> unlist())
+
+
 # save for later inspection
 rc.seq |>
   write_tsv('foo.tsv')
@@ -450,10 +478,10 @@ test.pairs <-
   filter(motif.x < motif.y)
 
 test.pairs |>
-  select(consensus.x, consensus.y) |>
+  select(filtered.consensus.x, filtered.consensus.y) |>
   # remove leading/trailing un-paired bases
-  mutate_at(c('consensus.x', 'consensus.y'), str_remove, '^\\.+') |>
-  mutate_at(c('consensus.x', 'consensus.y'), str_remove, '\\.+$') |>
+  mutate_at(c('filtered.consensus.x', 'filtered.consensus.y'), str_remove, '^\\.+') |>
+  mutate_at(c('filtered.consensus.x', 'filtered.consensus.y'), str_remove, '\\.+$') |>
   apply(1, str_c, collapse = '\n') |>
   str_c(collapse = '\n') |>
   write_lines('foo.txt')
@@ -473,10 +501,21 @@ rna.dist <-
 test.pairs |>
   mutate(f = rna.dist) |>
   arrange(f) |>
+  select(-c(consensus.x, consensus.y, keep.x, keep.y)) -> prelim
+prelim |>
   # write_tsv('stefan.tsv')
   View()
 
 ################################################################################
+prelim |>
+  ggplot(aes(f)) +
+  stat_ecdf() +
+  # scale_x_log10() +
+  # annotation_logticks(sides = 'b') +
+  xlab('Comparison consensus structures, RNAdistance') +
+  ylab('Empirical cumulative density') +
+  theme_bw(18)
+
 ################################################################################
 ################################################################################
 ################################################################################
