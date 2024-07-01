@@ -12,14 +12,13 @@ library(plyranges)
 
 library(conflicted)
 
-conflicts_prefer(dplyr::select)
-conflicts_prefer(dplyr::filter)
-conflicts_prefer(dplyr::rename)
-conflicted::conflicts_prefer(dplyr::first)
-conflicted::conflicts_prefer(dplyr::lag)
-
-conflicted::conflicts_prefer(base::union)
-conflicted::conflicts_prefer(base::setdiff)
+conflict_prefer('select', 'dplyr')
+conflict_prefer('filter', 'dplyr')
+conflict_prefer('rename', 'dplyr')
+conflict_prefer('first', 'dplyr')
+conflict_prefer('lag', 'dplyr')
+conflict_prefer('union', 'dplyr')
+conflict_prefer('setdiff', 'dplyr')
 
 ################################################################################
 # Straight-forward pipeline data loading
@@ -414,13 +413,16 @@ test.pairs <-
   filter(motif.x < motif.y)
 
 test.pairs |>
+  write_tsv('data/L1_redundancy/RNAdistance.pairs.tsv')
+
+test.pairs |>
   select(filtered.consensus.x, filtered.consensus.y) |>
   # remove leading/trailing un-paired bases
   mutate_at(c('filtered.consensus.x', 'filtered.consensus.y'), str_remove, '^\\.+') |>
   mutate_at(c('filtered.consensus.x', 'filtered.consensus.y'), str_remove, '\\.+$') |>
   apply(1, str_c, collapse = '\n') |>
   str_c(collapse = '\n') |>
-  write_tsv('data/L1_redundancy/RNAdistance.input.txt')
+  write_lines('data/L1_redundancy/RNAdistance.input.txt')
 
 ################################################################################
 # Stop here for RNAdistance rule to run

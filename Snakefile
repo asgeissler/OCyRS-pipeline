@@ -31,6 +31,7 @@ include: 'rules/H_scores.smk'
 include: 'rules/I_fdr.smk'
 include: 'rules/J_recall.smk'
 include: 'rules/K_pathways.smk'
+include: 'rules/L_redundancy.smk'
 include: 'rules/M_conformation.smk'
 
 # Target rules
@@ -83,6 +84,9 @@ rule all:
         # Associate potentially novel motifs to pathways as species information
         'data/K_motif-path.tsv',
         'data/K2_motifs.tsv',
+        # Explicit redundancy removal
+        'data/L1_redundancy/redundant.candidates.tsv',
+        'data/L1_redundancy/RNAdistance.output.txt',
         # Towards identifying structures with alternative conformations
         'data/M_alignments-candidates/',
         'data/M_alignments-Rfam/',

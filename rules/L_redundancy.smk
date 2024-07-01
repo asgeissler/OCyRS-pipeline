@@ -22,6 +22,7 @@ rule L_redundancy:
         'data/L1_redundancy/alignment.proportion.tsv',
         'data/L1_redundancy/redundant.candidates.tsv',
         'data/L1_redundancy/redundant.candidates.consensus.tsv',
+        'data/L1_redundancy/RNAdistance.pairs.tsv',
         'data/L1_redundancy/RNAdistance.input.txt'
     container: 'renv/renv.sif'
     conda: 'renv'
@@ -36,7 +37,7 @@ rule L_rnadist:
     output:
         'data/L1_redundancy/RNAdistance.output.txt'
     container: 'viennarna\:2.6.3--py39pl5321h4e691d4_0'
-    run:
+    shell:
       """
       # -B prints alignments for sanitizing
       cat {input} | RNAdistance -B > {output}
@@ -47,7 +48,20 @@ rule L_rnadist:
         
 rule L_redundancy2:
     input: 
+        'data/K2_motifs.tsv',
+        'data/L1_redundancy/no.crs.regions.tsv',
+        'data/L1_redundancy/potential.redundant.tsv',
+        'data/L1_redundancy/potential.redundant.jaccard.tsv',
+        'data/L1_redundancy/relative.overlaps.tsv',
+        'data/L1_redundancy/alignment.proportion.tsv',
+        'data/L1_redundancy/redundant.candidates.tsv',
+        'data/L1_redundancy/redundant.candidates.consensus.tsv',
+        'data/L1_redundancy/RNAdistance.pairs.tsv',
+        'data/L1_redundancy/RNAdistance.output.txt'
     output:
+        'data/L_rnadistance.tsv',
+        'data/L_redundant.tsv',
+        'data/L_redundant.jpeg'
     container: 'renv/renv.sif'
     conda: 'renv'
     script:
