@@ -87,6 +87,7 @@ rule all:
         # Explicit redundancy removal
         'data/L1_redundancy/redundant.candidates.tsv',
         'data/L1_redundancy/RNAdistance.output.txt',
+        'data/L_redundant.tsv',
         # Towards identifying structures with alternative conformations
         'data/M_alignments-candidates/',
         'data/M_alignments-Rfam/',
