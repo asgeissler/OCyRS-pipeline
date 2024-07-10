@@ -2,7 +2,7 @@
 
 This repository corresponds to the pipeline of the scientific publication:
 
-"Exploring the RNA structure regulatory potential in 202 cyanobacterial genomes"
+"Exploring the RNA structure regulatory potential in 202 cyanobacterial genomes"   
 AS  Geissler, EC Alvarez, C Anthon, NU Frigaard, J Gorodkin, and SE Seemann  
 *in preparation*
 
