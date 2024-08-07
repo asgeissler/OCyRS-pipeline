@@ -94,4 +94,71 @@ cowplot::plot_grid(p1, p2, ncol = 1)
 ggsave('foo.jpeg', width = 22, height = 10)
 
 ################################################################################
+# Check scores relatvie to species overlap
+
+ref.spec <-
+  'reference-trees/*.tree' |>
+  Sys.glob() %>%
+  set_names(., basename(.)) |>
+  map(ape::read.tree) |>
+  map(~ .$tip.label) |>
+  map(str_remove, '\\..*$') |>
+  map(unique)
+
+
+extra.shared <-
+  extra.scores |>
+  select(dir, motif) |>
+  mutate(
+    region = str_remove(motif, '.fna.motif.*$'),
+    path = 'data/F_cmfinder/%s/%s/%s' |>
+      sprintf(dir, region, str_remove(motif, '\\.sto$'))
+  ) |>
+  with(future_pmap(list(dir, motif, path), function(dir, motif, path) {
+    # path <- "data/F_cmfinder/D_search-seqs/K00008_downstream/K00008_downstream.fna.motif.h1_3"
+    path.spec <-
+      path |>
+      read_lines() |>
+      keep(str_starts, '[0-9]+\\.') |>
+      str_remove(' +.*$') |>
+      str_remove('\\..*$') |>
+      unique()
+    shared <-
+      ref.spec |>
+      map(~ intersect(.x, path.spec)) |>
+      map(length) |>
+      unlist()
+    
+    tibble(
+      tree = shared |>
+        names() |>
+        str_remove('.tree$'),
+      shared = shared,
+      no.motif = length(path.spec),
+      dir = dir,
+      motif = motif
+    )
+  })) |>
+  bind_rows()
+
+extra.shared |>
+  write_tsv('data/H2_shared-species.tsv')
+
 ################################################################################
+
+extra.scores |>
+  pivot_longer(- c(dir, motif))  |>
+  inner_join(extra.shared, c('dir', 'motif', 'name' = 'tree')) |>
+  mutate(
+    x = ifelse(dir == 'D_search-seqs', 'Biological motif', 'Random background'),
+  ) |>
+  filter(value > 0) |>
+  filter(x == 'Biological motif') |>
+  ggplot(aes(shared / no.motif, value, color = name)) +
+  geom_point() +
+  xlab('Proportion of species in motif shared with tree') +
+  ylab('RNAphylo score\n(non-positive values omitted)') +
+  theme_bw(18) -> p
+  # facet_wrap(~ x) -> p
+             
+ggExtra::ggMarginal(p, groupColour = TRUE, groupFill = TRUE)
