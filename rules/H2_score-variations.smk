@@ -60,9 +60,14 @@ rule H2_all:
         touch('data/H2_scores/done.flag')
 
 
+# this rule has to be run manually, since individual phylo scores just fail
+# if not a single species overlap the reference tree.
+# A clean Snakemake implementaiton is a bit too coplicates at this point
+# use:
+# bash run_local.sh H2_combine --allowed-rules H2_combine
 rule H2_combine:
     input:
-        'data/H2_scores/done.flag',
+        #'data/H2_scores/done.flag',
         'data/H_scores.tsv'
     output:
         'data/H2_extra-scores.tsv',
