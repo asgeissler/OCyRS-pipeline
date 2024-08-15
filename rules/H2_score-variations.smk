@@ -62,11 +62,16 @@ rule H2_all:
 
 rule H2_combine:
     input:
-        'data/H_scores/done.flag'
-    output:
+        'data/H2_scores/done.flag',
         'data/H_scores.tsv'
+    output:
+        'data/H2_extra-scores.tsv',
+        'data/H2_scores-comparisons.jpeg',
+        'data/H2_shared-species.tsv',
+        'data/H2_scores-species-tree.jpeg'
     container: 'renv/renv.sif'
     conda: 'renv'
     threads: 8
     script:
-        '../scripts/H_collect-scores.R'
+        '../scripts/H2_collect.R'
+        

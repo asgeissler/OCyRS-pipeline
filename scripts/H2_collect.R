@@ -91,7 +91,7 @@ p2 <-
 
 
 cowplot::plot_grid(p1, p2, ncol = 1)
-ggsave('foo.jpeg', width = 22, height = 10)
+ggsave('data/H2_scores-comparisons.jpeg', width = 22, height = 10)
 
 ################################################################################
 # Check scores relatvie to species overlap
@@ -161,4 +161,5 @@ extra.scores |>
   theme_bw(18) -> p
   # facet_wrap(~ x) -> p
              
-ggExtra::ggMarginal(p, groupColour = TRUE, groupFill = TRUE)
+p <- ggExtra::ggMarginal(p, groupColour = TRUE, groupFill = TRUE)
+ggsave('data/H2_scores-species-tree.jpeg', p, width = 12, height = 12)
